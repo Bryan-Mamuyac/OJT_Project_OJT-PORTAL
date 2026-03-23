@@ -1,0 +1,529 @@
+﻿@using System.Linq
+@model TaskItem
+@{
+    ViewData["Title"] = "Task Details";
+    var submission = ViewBag.Submission as TaskSubmission;
+    bool wasRejected = submission != null && submission.Status == "Rejected";
+}
+
+<div class="form-page">
+    <div class="form-card">
+
+        <!-- HEADER -->
+        <div class="form-card-header">
+            <div class="detail-header-row">
+                <h3><i class="fas fa-clipboard-check"></i> Task Details</h3>
+                <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                    <span class="status-badge status-@Model.Status.ToLower()">@Model.Status</span>
+                    @if (Model.TaskType == "Group")
+                    {
+                        <span class="status-badge" style="background:#f3e8ff;color:#7c3aed;">
+                            <i class="fas fa-users"></i> Group Task
+                        </span>
+                    }
+                    @if (Model.IsOverdue)
+                    {
+                        <span class="deadline-badge overdue">
+                            <i class="fas fa-exclamation-triangle"></i> Overdue
+                        </span>
+                    }
+                    else if (Model.IsNearDeadline)
+                    {
+                        <span class="deadline-badge near">
+                            <i class="fas fa-hourglass-half"></i> Due Soon
+                        </span>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <!-- RESUBMIT REQUIRED BANNER -->
+        @if (wasRejected)
+        {
+            <div class="resubmit-banner">
+                <i class="fas fa-redo"></i>
+                <div>
+                    <span class="rb-label">Resubmission Required</span>
+                    <span class="rb-desc">Your employee has requested you to redo and resubmit this task.</span>
+                </div>
+            </div>
+        }
+
+        <!-- DEADLINE BANNER -->
+        @if (Model.Deadline.HasValue)
+        {
+            <div class="deadline-banner @(Model.IsOverdue ? "deadline-overdue" : Model.IsNearDeadline ? "deadline-near" : "deadline-ok")">
+                <i class="fas fa-calendar-alt"></i>
+                <div>
+                    <span class="dl-label">Deadline</span>
+                    <span class="dl-value">@Model.DeadlinePhDisplay</span>
+                </div>
+                @if (Model.IsOverdue)
+                {
+                    <span class="dl-tag">OVERDUE</span>
+                }
+                else if (Model.IsNearDeadline)
+                {
+                    <span class="dl-tag">DUE WITHIN 24 HRS</span>
+                }
+            </div>
+        }
+
+        <!-- TASK INFO -->
+        <div class="task-detail-body">
+
+            <div class="td-field td-full">
+                <span class="td-label">Task Title</span>
+                <span class="td-value td-title">@Model.Title</span>
+            </div>
+
+            <div class="td-row">
+                <div class="td-field">
+                    <span class="td-label">Assigned By</span>
+                    <span class="td-value"><i class="fas fa-user-tie"></i> @Model.AssignedByName @if (!string.IsNullOrEmpty(Model.AssignedByBranch)) {
+                    <span class="meta-branch"><i class="fas fa-map-marker-alt"></i> @Model.AssignedByBranch</span>
+                                        }
+</span>
+                </div>
+                <div class="td-field">
+                    <span class="td-label">Date Assigned</span>
+                    <span class="td-value">@Model.CreatedAt.ToString("MMMM dd, yyyy")</span>
+                </div>
+            </div>
+
+            <div class="td-field td-full">
+                <span class="td-label">Description</span>
+                <div class="td-desc">@Model.Description</div>
+            </div>
+
+            @{
+                var _mf = Model.GetAttachedFiles();
+            }
+            @if (_mf.Any())
+            {
+                <div class="td-field td-full">
+                    <span class="td-label"><i class="fas fa-paperclip" style="margin-right:5px;color:#2563ab;"></i>Attached Files</span>
+                    <div class="file-chips file-chips-col" style="margin-top:8px;">
+                        @foreach (var af in _mf)
+                        {
+                            var afx = System.IO.Path.GetExtension(af.Name).ToLower();
+                            string afi;
+                            if (afx == ".png" || afx == ".jpg" || afx == ".jpeg") afi = "fas fa-image";
+                            else if (afx == ".pbix") afi = "fas fa-chart-bar";
+                            else if (afx == ".pdf") afi = "fas fa-file-pdf";
+                            else if (afx == ".xlsx" || afx == ".xls") afi = "fas fa-file-excel";
+                            else if (afx == ".docx" || afx == ".doc") afi = "fas fa-file-word";
+                            else if (afx == ".pptx" || afx == ".ppt") afi = "fas fa-file-powerpoint";
+                            else if (afx == ".zip") afi = "fas fa-file-archive";
+                            else afi = "fas fa-file";
+                            <a href="@af.Path" class="file-chip" target="_blank" title="@af.Name">
+                                <i class="@afi"></i>
+                                <span>@af.Name</span>
+                            </a>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+
+        <!-- PREVIOUS SUBMISSION (shown when rejected) -->
+        @if (submission != null)
+        {
+            <div class="td-submission-section">
+                <div class="td-submission-header">
+                    <i class="fas fa-paper-plane"></i> Your Previous Submission
+                    @if (wasRejected)
+                    {
+                        <span class="status-badge" style="margin-left:8px;background:#fff7ed;color:#c2410c;border:1px solid #fed7aa;">
+                            <i class="fas fa-redo"></i> Resubmit Required
+                        </span>
+                    }
+                    else
+                    {
+                        <span class="status-badge status-@submission.Status.ToLower()" style="margin-left:8px">@submission.Status</span>
+                    }
+                </div>
+                <div class="task-detail-body td-submission-body">
+                    <div class="td-row">
+                        <div class="td-field">
+                            <span class="td-label">Submission Title</span>
+                            <span class="td-value">@submission.SubmissionTitle</span>
+                        </div>
+                        <div class="td-field">
+                            <span class="td-label">Submitted On</span>
+                            <span class="td-value">@submission.SubmittedAt.ToString("MMMM dd, yyyy h:mm tt")</span>
+                        </div>
+                    </div>
+                    <div class="td-field td-full">
+                        <span class="td-label">Your Description</span>
+                        <div class="td-desc">@submission.SubmissionDescription</div>
+                    </div>
+                    @if (!string.IsNullOrEmpty(submission.FilePath))
+                    {
+                        <div class="td-field td-full">
+                            <span class="td-label">Submitted File</span>
+                            <a href="@submission.FilePath" class="file-link" target="_blank">
+                                <i class="fas fa-file"></i> @submission.FileName
+                            </a>
+                        </div>
+                    }
+                    @if (!string.IsNullOrEmpty(submission.LinkUrl))
+                    {
+                        <div class="td-field td-full">
+                            <span class="td-label">Submitted Link</span>
+                            <a href="@submission.LinkUrl" class="file-link" target="_blank">
+                                <i class="fas fa-external-link-alt"></i> @submission.LinkUrl
+                            </a>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+
+        <!-- ACTIONS -->
+        <div class="td-actions">
+            <a asp-action="Index" class="btn btn-outline">
+                <i class="fas fa-arrow-left"></i> Back to Dashboard
+            </a>
+            @if (Model.Status == "New")
+            {
+                <a asp-action="SubmitTask" asp-route-id="@Model.TaskId" class="btn @(wasRejected ? "btn-resubmit-action" : "btn-primary")">
+                    @if (wasRejected)
+                    {
+                        <i class="fas fa-redo"></i>
+                        <span>Resubmit Task</span>
+                    }
+                    else
+                    {
+                        <i class="fas fa-play-circle"></i>
+                        <span>Start Task</span>
+                    }
+                </a>
+            }
+            else if (Model.Status == "Pending")
+            {
+                <span class="btn btn-warning-sm disabled">
+                    <i class="fas fa-hourglass-half"></i> Under Review
+                </span>
+            }
+            else if (Model.Status == "Approved")
+            {
+                <span class="btn btn-success-sm disabled">
+                    <i class="fas fa-check"></i> Approved
+                </span>
+            }
+        </div>
+
+    </div>
+</div>
+
+@section Styles {
+    <style>
+        .file-chips-col {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            margin-top: 6px;
+        }
+
+        .file-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 7px 13px;
+            border-radius: 8px;
+            background: #f0f7ff;
+            border: 1px solid #bfdbfe;
+            color: #1d4ed8;
+            font-size: .82rem;
+            font-weight: 500;
+            text-decoration: none;
+            transition: background .15s, border-color .15s;
+            width: fit-content;
+            max-width: 100%;
+        }
+
+            .file-chip:hover {
+                background: #dbeafe;
+                border-color: #93c5fd;
+                color: #1e40af;
+            }
+
+        .file-chip {
+            max-width: 320px;
+        }
+
+            .file-chip i {
+                font-size: .85rem;
+                flex-shrink: 0;
+            }
+
+            .file-chip span {
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+
+        .task-detail-body {
+            padding: 24px 28px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .td-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .td-field {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .td-label {
+            font-size: .72rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .6px;
+            color: #94a3b8;
+        }
+
+        .td-value {
+            font-size: .95rem;
+            color: #0f172a;
+            font-weight: 500;
+        }
+
+            .td-value i {
+                color: #64748b;
+                margin-right: 4px;
+            }
+
+        .td-title {
+            font-size: 1.2rem;
+            font-weight: 700;
+        }
+
+        .td-desc {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 14px 16px;
+            font-size: .9rem;
+            color: #334155;
+            line-height: 1.6;
+        }
+
+        /* Resubmit required banner */
+        .resubmit-banner {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 14px 28px;
+            background: #fff7ed;
+            color: #c2410c;
+            border-top: 3px solid #fb923c;
+            border-bottom: 1px solid #fed7aa;
+        }
+
+            .resubmit-banner i {
+                font-size: 1.3rem;
+                flex-shrink: 0;
+            }
+
+        .rb-label {
+            display: block;
+            font-size: .8rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .5px;
+        }
+
+        .rb-desc {
+            display: block;
+            font-size: .85rem;
+            opacity: .85;
+        }
+
+        /* Deadline banner */
+        .deadline-banner {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 14px 28px;
+            border-bottom: 1px solid #e2e8f0;
+            font-size: .9rem;
+        }
+
+            .deadline-banner i {
+                font-size: 1.3rem;
+                flex-shrink: 0;
+            }
+
+        .deadline-ok {
+            background: #f0fdf4;
+            color: #15803d;
+            border-top: 1px solid #bbf7d0;
+        }
+
+        .deadline-near {
+            background: #fffbeb;
+            color: #b45309;
+            border-top: 1px solid #fde68a;
+        }
+
+        .deadline-overdue {
+            background: #fff1f2;
+            color: #b91c1c;
+            border-top: 1px solid #fecdd3;
+        }
+
+        .dl-label {
+            display: block;
+            font-size: .7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .5px;
+            opacity: .7;
+        }
+
+        .dl-value {
+            display: block;
+            font-size: .95rem;
+            font-weight: 600;
+        }
+
+        .dl-tag {
+            margin-left: auto;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: .7rem;
+            font-weight: 700;
+            letter-spacing: .5px;
+            background: rgba(0,0,0,.08);
+        }
+
+        .deadline-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 2px 8px;
+            border-radius: 20px;
+            font-size: .72rem;
+            font-weight: 600;
+        }
+
+            .deadline-badge.overdue {
+                background: #fee2e2;
+                color: #b91c1c;
+            }
+
+            .deadline-badge.near {
+                background: #fef3c7;
+                color: #b45309;
+            }
+
+        /* Submission section */
+        .td-submission-section {
+            border-top: 2px dashed #e2e8f0;
+        }
+
+        .td-submission-header {
+            display: flex;
+            align-items: center;
+            padding: 14px 28px;
+            font-size: .9rem;
+            font-weight: 600;
+            color: #1a3a5c;
+            background: #f1f5f9;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+            .td-submission-header i {
+                margin-right: 8px;
+                color: #2563ab;
+            }
+
+        .td-submission-body {
+            padding-top: 16px;
+            border-top: none;
+        }
+
+        /* Resubmit action button */
+        .btn-resubmit-action {
+            background: linear-gradient(135deg, #ea580c, #c2410c);
+            color: #fff;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: .875rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            text-decoration: none;
+            transition: opacity .2s;
+        }
+
+            .btn-resubmit-action:hover {
+                opacity: .88;
+                color: #fff;
+            }
+
+        /* Actions bar */
+        .td-actions {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 10px;
+            padding: 16px 28px;
+            border-top: 1px solid #e2e8f0;
+            background: #f8fafc;
+        }
+
+        @@media (max-width:600px) {
+            .td-row {
+                grid-template-columns: 1fr;
+            }
+
+            .task-detail-body {
+                padding: 16px;
+            }
+
+            .td-actions {
+                padding: 14px 16px;
+                flex-wrap: wrap;
+            }
+
+            .deadline-banner {
+                padding: 12px 16px;
+                flex-wrap: wrap;
+            }
+
+            .resubmit-banner {
+                padding: 12px 16px;
+                flex-wrap: wrap;
+            }
+        }
+
+        .meta-branch {
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            font-size: .72rem;
+            font-weight: 600;
+            color: #0369a1;
+            background: #e0f2fe;
+            padding: 1px 7px;
+            border-radius: 20px;
+        }
+
+            .meta-branch i {
+                font-size: .6rem;
+            }
+    </style>
+}

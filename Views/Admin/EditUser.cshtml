@@ -1,0 +1,357 @@
+﻿@model AdminEditUserViewModel
+@{
+    ViewData["Title"] = "Edit User";
+    var departments = ViewBag.Departments as string[] ?? Array.Empty<string>();
+    string[] allBranches = new[] { "Agoo", "Reina Mercedes", "Candon", "Pasig" };
+}
+
+<div class="form-page">
+    <div class="form-card">
+        <div class="form-card-header">
+            <h3><i class="fas fa-user-edit"></i> Edit User</h3>
+            <p>Update user details, role, department, or account status.</p>
+        </div>
+
+        <form asp-action="EditUser" method="post">
+            @Html.AntiForgeryToken()
+            <input type="hidden" asp-for="UserId" />
+            <div asp-validation-summary="ModelOnly" class="alert alert-danger" style="margin:16px 24px 0;"></div>
+
+            <!-- STATUS — hidden input holds the value, cards are purely visual -->
+            <div class="ct-section">
+                <span class="ct-label"><i class="fas fa-toggle-on"></i> Account Status <span class="required-star">*</span></span>
+                <input type="hidden" name="Status" id="statusInput" value="@Model.Status" />
+                <div class="status-toggle-row">
+                    @if (Model.Status == "Active")
+                    {
+                        <div class="status-card status-active-card active" id="cardActive" onclick="selectStatus('Active')">
+                            <i class="fas fa-check-circle"></i><span>Active</span>
+                        </div>
+                        <div class="status-card status-inactive-card" id="cardInactive" onclick="selectStatus('Inactive')">
+                            <i class="fas fa-ban"></i><span>Inactive</span>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="status-card status-active-card" id="cardActive" onclick="selectStatus('Active')">
+                            <i class="fas fa-check-circle"></i><span>Active</span>
+                        </div>
+                        <div class="status-card status-inactive-card active" id="cardInactive" onclick="selectStatus('Inactive')">
+                            <i class="fas fa-ban"></i><span>Inactive</span>
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <!-- NAME ROW -->
+            <div class="ct-section">
+                <div class="name-row">
+                    <div class="name-col">
+                        <label class="ct-label" asp-for="FirstName">
+                            <i class="fas fa-user"></i> First Name <span class="required-star">*</span>
+                        </label>
+                        <input asp-for="FirstName" class="form-control" oninput="generateUsername()" />
+                        <span asp-validation-for="FirstName" class="field-error"></span>
+                    </div>
+                    <div class="name-col">
+                        <label class="ct-label" asp-for="LastName">
+                            <i class="fas fa-user"></i> Last Name <span class="required-star">*</span>
+                        </label>
+                        <input asp-for="LastName" class="form-control" oninput="generateUsername()" />
+                        <span asp-validation-for="LastName" class="field-error"></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- USERNAME (read-only, auto from name) -->
+            <div class="ct-section">
+                <label class="ct-label">
+                    <i class="fas fa-at"></i> Username <span class="auto-badge">Auto-generated</span>
+                </label>
+                <div class="username-preview has-value" id="usernamePreview">
+                    <i class="fas fa-lock" style="color:#2563ab;font-size:.85rem;"></i>
+                    <span id="usernameText">@Model.Username</span>
+                </div>
+                <p class="field-hint">Username updates automatically when name changes.</p>
+            </div>
+
+            <!-- EMAIL -->
+            <div class="ct-section">
+                <label class="ct-label" asp-for="Email">
+                    <i class="fas fa-envelope"></i> Email <span class="required-star">*</span>
+                </label>
+                <input asp-for="Email" class="form-control" type="email" />
+                <span asp-validation-for="Email" class="field-error"></span>
+            </div>
+
+            <!-- ROLE -->
+            <div class="ct-section">
+                <label class="ct-label" asp-for="Role">
+                    <i class="fas fa-id-badge"></i> Role <span class="required-star">*</span>
+                </label>
+                <select class="form-control" name="Role">
+                    @if (Model.Role == "OJT")
+                    {
+                        <option value="OJT" selected="selected">OJT Trainee</option>
+                    }
+                    else
+                    {
+                        <option value="OJT">OJT Trainee</option>
+                    }
+                    @if (Model.Role == "Employee")
+                    {
+                        <option value="Employee" selected="selected">Employee</option>
+                    }
+                    else
+                    {
+                        <option value="Employee">Employee</option>
+                    }
+                </select>
+                <span asp-validation-for="Role" class="field-error"></span>
+            </div>
+
+            <!-- DEPARTMENT -->
+            <div class="ct-section">
+                <label class="ct-label" asp-for="Department">
+                    <i class="fas fa-building"></i> Department <span class="required-star">*</span>
+                </label>
+                <select class="form-control" name="Department">
+                    <option value="">-- Select Department --</option>
+                    @foreach (var d in departments)
+                    {
+                        if (Model.Department == d)
+                        {
+                            <option value="@d" selected="selected">@d</option>
+                        }
+                        else
+                        {
+                            <option value="@d">@d</option>
+                        }
+                    }
+                </select>
+                <span asp-validation-for="Department" class="field-error"></span>
+            </div>
+
+            <!-- BRANCH -->
+            <div class="ct-section">
+                <label class="ct-label" asp-for="Branch">
+                    <i class="fas fa-map-marker-alt"></i> Branch <span class="required-star">*</span>
+                </label>
+                <select class="form-control" name="Branch">
+                    <option value="">Select Branch</option>
+                    @foreach (var b in allBranches)
+                    {
+                        if (Model.Branch == b)
+                        {
+                            <option value="@b" selected="selected">@b</option>
+                        }
+                        else
+                        {
+                            <option value="@b">@b</option>
+                        }
+                    }
+                </select>
+                <span asp-validation-for="Branch" class="field-error"></span>
+            </div>
+
+            <!-- RESET PASSWORD -->
+            <div class="ct-section">
+                <span class="ct-label"><i class="fas fa-key"></i> Password</span>
+                <div class="reset-pw-box">
+                    <div>
+                        <strong>Reset to default password</strong>
+                        <p style="margin:4px 0 0;font-size:.82rem;color:#64748b;">
+                            Resets to <strong>password123</strong>. User must change it on next login.
+                        </p>
+                    </div>
+                    <button type="button" class="btn btn-warning-sm" onclick="submitResetPassword()">
+                        <i class="fas fa-redo"></i> Reset Password
+                    </button>
+                </div>
+            </div>
+
+            <!-- ACTIONS -->
+            <div class="ct-actions">
+                <a asp-action="AllUsers" class="btn btn-outline">
+                    <i class="fas fa-arrow-left"></i> Cancel
+                </a>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save"></i> Save Changes
+                </button>
+            </div>
+        </form>
+
+        <!-- Reset Password form lives OUTSIDE the main form to avoid nesting -->
+        <form id="resetPasswordForm" asp-action="ResetPassword" method="post" style="display:none;">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="userId" value="@Model.UserId" />
+        </form>
+    </div>
+</div>
+
+@section Styles {
+    <style>
+        .ct-section {
+            padding: 16px 24px;
+        }
+
+        .ct-label {
+            display: block;
+            font-size: .78rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .6px;
+            color: #475569;
+            margin-bottom: 8px;
+        }
+
+            .ct-label i {
+                margin-right: 5px;
+                color: #2563ab;
+            }
+
+        .ct-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            padding: 16px 24px;
+            border-top: 1px solid #e2e8f0;
+            background: #f8fafc;
+        }
+
+        .required-star {
+            color: #dc2626;
+            font-weight: 700;
+            margin-left: 2px;
+        }
+
+        .auto-badge {
+            background: #dbeafe;
+            color: #1d4ed8;
+            font-size: .68rem;
+            padding: 2px 8px;
+            border-radius: 20px;
+            margin-left: 6px;
+            text-transform: none;
+            letter-spacing: 0;
+            font-weight: 600;
+        }
+
+        .field-hint {
+            font-size: .75rem;
+            color: #94a3b8;
+            margin-top: 5px;
+        }
+
+        .name-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        .name-col {
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Status toggle */
+        .status-toggle-row {
+            display: flex;
+            gap: 12px;
+        }
+
+        .status-card {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 14px 20px;
+            border-radius: 12px;
+            border: 2px solid #e2e8f0;
+            cursor: pointer;
+            background: #f8fafc;
+            font-size: .9rem;
+            font-weight: 600;
+            color: #64748b;
+            transition: all .2s;
+            user-select: none;
+            flex: 1;
+        }
+
+            .status-card input[type=radio] {
+                display: none;
+            }
+
+        .status-active-card.active {
+            border-color: #16a34a;
+            background: #f0fdf4;
+            color: #15803d;
+        }
+
+        .status-inactive-card.active {
+            border-color: #dc2626;
+            background: #fff1f2;
+            color: #dc2626;
+        }
+
+        .status-card:hover {
+            border-color: #93c5fd;
+        }
+
+        /* Username preview */
+        .username-preview {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: #eff6ff;
+            border: 1.5px dashed #93c5fd;
+            border-radius: 10px;
+            padding: 12px 16px;
+            font-size: .95rem;
+            font-weight: 600;
+            color: #1d4ed8;
+        }
+
+        /* Reset password box */
+        .reset-pw-box {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 14px 16px;
+        }
+
+        @@media (max-width:560px) {
+            .name-row {
+                grid-template-columns: 1fr;
+            }
+
+            .status-toggle-row {
+                flex-direction: column;
+            }
+        }
+    </style>
+}
+
+@section Scripts {
+    <script>
+        function generateUsername() {
+            var first = document.querySelector('[name="FirstName"]')?.value || '';
+            var last  = document.querySelector('[name="LastName"]')?.value  || '';
+            var text  = document.getElementById('usernameText');
+            var uname = (first.trim().toLowerCase().replace(/\s+/g,'')) + '_' +
+                        (last.trim().toLowerCase().replace(/\s+/g,''));
+            text.textContent = uname || '@Model.Username';
+        }
+
+        function selectStatus(status) {
+            // Update the hidden input that actually gets submitted
+            document.getElementById('statusInput').value = status;
+            // Update visual card classes
+            document.getElementById('cardActive').className   = 'status-card status-active-card'   + (status === 'Active'   ? ' active' : '');
+            document.getElementById('cardInactive').className = 'status-card status-inactive-card' + (status === 'Inactive' ? ' active' : '');
+        }
+    </script>
+}

@@ -1,0 +1,700 @@
+﻿@model List<TaskItem>
+@{
+    string pageTitle = ViewData["Title"]?.ToString() ?? "Tasks Given";
+    bool isCompleted = pageTitle == "Completed Tasks";
+
+    var filterBranches = isCompleted
+        ? Model.Select(t => t.AssignedToBranch ?? "").Where(b => b != "").Distinct().OrderBy(b => b).ToList()
+        : new List<string>();
+    var filterOJTs = isCompleted
+        ? Model.Select(t => t.AssignedToName ?? "").Where(n => n != "").Distinct().OrderBy(n => n).ToList()
+        : new List<string>();
+    bool showFilter = isCompleted && Model.Any() && (filterBranches.Any() || filterOJTs.Any());
+}
+
+<div class="dashboard">
+    <div class="section-card">
+        <div class="section-header">
+            <h3>
+                <i class="@(isCompleted ? "fas fa-check-circle" : "fas fa-clipboard-list")"></i>
+                @pageTitle
+            </h3>
+            <div style="display:flex;gap:8px;">
+                <a asp-action="CreateTask" class="btn btn-primary-sm">
+                    <i class="fas fa-plus"></i> New Task
+                </a>
+            </div>
+        </div>
+
+        @if (showFilter)
+        {
+            <div class="hf-bar">
+                <span class="hf-bar-title"><i class="fas fa-filter"></i> Filter Results</span>
+                <div class="hf-controls">
+                    @if (filterBranches.Any())
+                    {
+                        <div class="hf-group">
+                            <label class="hf-label"><i class="fas fa-map-marker-alt"></i> Branch</label>
+                            <select id="filterBranch" class="hf-select" onchange="applyFilters()">
+                                <option value="">All Branches</option>
+                                @foreach (var b in filterBranches)
+                                {
+                                    <option value="@b">@b</option>
+                                }
+                            </select>
+                        </div>
+                    }
+                    @if (filterOJTs.Any())
+                    {
+                        <div class="hf-group">
+                            <label class="hf-label"><i class="fas fa-user-graduate"></i> OJT Trainee</label>
+                            <select id="filterOJT" class="hf-select" onchange="applyFilters()">
+                                <option value="">All Trainees</option>
+                                @foreach (var n in filterOJTs)
+                                {
+                                    <option value="@n">@n</option>
+                                }
+                            </select>
+                        </div>
+                    }
+                    <button type="button" class="hf-clear" onclick="clearFilters()"><i class="fas fa-times"></i> Clear</button>
+                </div>
+            </div>
+        }
+
+        <div class="section-body">
+            @if (!Model.Any())
+            {
+                <div class="empty-state">
+                    <i class="fas fa-clipboard"></i>
+                    <p>No tasks found.</p>
+                </div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="data-table emp-task-table">
+                        <thead>
+                            <tr>
+                                <th>Title</th>
+                                <th>Type</th>
+                                <th>Assigned To</th>
+                                <th>Deadline</th>
+                                <th>Status</th>
+                                <th>Work Status</th>
+                                <th>Created</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var t in Model)
+                            {
+                                <tr data-branch="@(t.AssignedToBranch ?? "")" data-ojt="@(t.AssignedToName ?? "")">
+                                    <td class="col-title">
+                                        <strong>@t.Title</strong>
+                                        <div class="sub">@(t.Description.Length > 50 ? t.Description[..50] + "…" : t.Description)</div>
+                                    </td>
+                                    <td class="col-type">
+                                        @if (t.TaskType == "Group")
+                                        {
+                                            <span class="status-badge" style="background:#f3e8ff;color:#7c3aed;"><i class="fas fa-users"></i> Group</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="status-badge" style="background:#dbeafe;color:#1d4ed8;"><i class="fas fa-user"></i> Individual</span>
+                                        }
+                                    </td>
+                                    <td class="col-assigned">@t.AssignedToName</td>
+                                    <td class="col-deadline">
+                                        @if (t.Deadline.HasValue)
+                                        {
+                                            <div class="dl-wrap">
+                                                <span class="dl-date @(t.IsOverdue ? "text-danger-sm" : t.IsNearDeadline ? "text-warning-sm" : "")">@t.DeadlinePhDisplay</span>
+                                                @if (t.IsOverdue)
+                                                {
+                                                    <span class="deadline-badge overdue">Overdue</span>
+                                                }
+                                                else if (t.IsNearDeadline)
+                                                {
+                                                    <span class="deadline-badge near">Due Soon</span>
+                                                }
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">—</span>
+                                        }
+                                    </td>
+                                    <td class="col-status">
+                                        <span class="status-badge status-@t.Status.ToLower()">@t.Status</span>
+                                    </td>
+                                    <td class="col-ws">
+                                        @if (t.Status == "Approved")
+                                        {
+                                            <span class="ws-badge ws-done">
+                                                <i class="fas fa-check-circle" style="font-size:.75rem;"></i> Done
+                                            </span>
+                                        }
+                                        else if (t.WorkStatus != null)
+                                        {
+                                            string wsCls = t.WorkStatus switch
+                                            {
+                                                "In Progress" => "ws-ip",
+                                                "On Hold" => "ws-oh",
+                                                "On Break" => "ws-ob",
+                                                "Nature Call" => "ws-nc",
+                                                _ => ""
+                                            };
+                                            <span class="ws-badge @wsCls">
+                                                <i class="fas fa-circle ws-dot"></i> @t.WorkStatus
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted" style="font-size:.78rem;">—</span>
+                                        }
+                                    </td>
+                                    <td class="col-created">@t.CreatedAt.ToString("MMM dd, yyyy")</td>
+                                    <td class="col-actions">
+                                        <div class="action-buttons">
+                                            @if (t.Status == "New")
+                                            {
+                                                <a asp-action="EditTask" asp-route-id="@t.TaskId" class="btn btn-edit-sm">
+                                                    <i class="fas fa-pen"></i> Edit
+                                                </a>
+                                                <button type="button" class="btn btn-cancel-sm"
+                                                        onclick="openCancelModal(@t.TaskId, '@Html.Raw(t.Title.Replace("'", "\'"))')">
+                                                    <i class="fas fa-times"></i> Cancel
+                                                </button>
+                                            }
+                                            else if (t.Status == "Pending")
+                                            {
+                                                <a asp-action="PendingSubmissions" class="btn btn-warning-sm">
+                                                    <i class="fas fa-eye"></i> Review
+                                                </a>
+                                            }
+                                            else if (t.Status == "Approved")
+                                            {
+                                                <a asp-action="TaskDetails" asp-route-id="@t.TaskId" class="btn btn-view-sm">
+                                                    <i class="fas fa-eye"></i> View
+                                                </a>
+                                            }
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                    <!-- Pagination -->
+                    <div class="pg-wrap" id="pgWrap"></div>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+<!-- Hidden cancel form — submitted by modal -->
+<form id="cancelTaskForm" asp-action="DeleteTask" method="post" style="display:none;">
+    @Html.AntiForgeryToken()
+    <input type="hidden" name="taskId" id="cancelTaskId" />
+    <input type="hidden" name="returnTo" value="TasksGiven" />
+</form>
+
+<!-- Cancel Confirmation Modal -->
+<div id="cancelOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9000;align-items:center;justify-content:center;padding:16px;"
+     onclick="if(event.target===this)closeCancelModal()">
+    <div style="background:#fff;border-radius:16px;width:100%;max-width:420px;box-shadow:0 20px 60px rgba(0,0,0,.22);overflow:hidden;">
+        <!-- Header -->
+        <div style="padding:22px 24px 0;text-align:center;">
+            <div style="width:58px;height:58px;border-radius:50%;background:#fee2e2;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:1.5rem;color:#dc2626;">
+                <i class="fas fa-exclamation-triangle"></i>
+            </div>
+            <h3 style="margin:0 0 8px;font-size:1.05rem;font-weight:700;color:#0f172a;">Cancel Task?</h3>
+            <p style="margin:0 0 6px;font-size:.88rem;color:#64748b;">
+                Are you sure you want to cancel
+            </p>
+            <p style="margin:0 0 4px;font-size:.92rem;font-weight:700;color:#dc2626;" id="cancelTaskName"></p>
+            <p style="margin:0;font-size:.82rem;color:#94a3b8;">
+                This task will be moved to your <strong>History</strong> as cancelled and cannot be undone.
+            </p>
+        </div>
+        <!-- Footer -->
+        <div style="display:flex;justify-content:center;gap:10px;padding:20px 24px 24px;">
+            <button type="button" onclick="closeCancelModal()" class="btn btn-outline" style="min-width:100px;">
+                No, Keep It
+            </button>
+            <button type="button" onclick="confirmCancel()" style="min-width:130px;padding:8px 18px;border-radius:8px;border:none;background:linear-gradient(135deg,#dc2626,#b91c1c);color:#fff;font-size:.875rem;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;">
+                <i class="fas fa-ban"></i> Yes, Cancel It
+            </button>
+        </div>
+    </div>
+</div>
+
+
+@section Styles {
+    <style>
+        .deadline-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            padding: 1px 6px;
+            border-radius: 20px;
+            font-size: .68rem;
+            font-weight: 600;
+            margin-left: 4px;
+        }
+
+            .deadline-badge.overdue {
+                background: #fee2e2;
+                color: #b91c1c;
+            }
+
+            .deadline-badge.near {
+                background: #fef3c7;
+                color: #b45309;
+            }
+
+        .text-danger-sm {
+            color: #dc2626;
+            font-size: .82rem;
+        }
+
+        .text-warning-sm {
+            color: #d97706;
+            font-size: .82rem;
+        }
+
+        /* ── Employee task table ── */
+        .emp-task-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+            .emp-task-table thead tr {
+                background: #f8fafc;
+            }
+
+            .emp-task-table th {
+                padding: 10px 14px;
+                font-size: .69rem;
+                font-weight: 700;
+                text-transform: uppercase;
+                letter-spacing: .5px;
+                color: #94a3b8;
+                border-bottom: 2px solid #e2e8f0;
+                white-space: nowrap;
+            }
+
+            .emp-task-table td {
+                padding: 10px 14px;
+                font-size: .83rem;
+                color: #1e293b;
+                border-bottom: 1px solid #f1f5f9;
+                vertical-align: middle;
+            }
+
+            .emp-task-table tbody tr:hover {
+                background: #f8fafc;
+            }
+
+            .emp-task-table td.col-title {
+                max-width: 180px;
+            }
+
+                .emp-task-table td.col-title strong {
+                    display: block;
+                    white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    font-size: .85rem;
+                }
+
+                .emp-task-table td.col-title .sub {
+                    display: block;
+                    white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    font-size: .74rem;
+                    color: #94a3b8;
+                }
+
+            .emp-task-table td.col-type {
+                white-space: nowrap;
+            }
+
+            .emp-task-table td.col-assigned {
+                white-space: nowrap;
+            }
+
+            .emp-task-table td.col-status {
+                white-space: nowrap;
+            }
+
+            .emp-task-table td.col-created {
+                white-space: nowrap;
+                font-size: .8rem;
+                color: #64748b;
+            }
+
+            .emp-task-table td.col-deadline {
+                min-width: 140px;
+            }
+
+            .emp-task-table .dl-wrap {
+                display: flex;
+                flex-direction: column;
+                gap: 3px;
+            }
+
+            .emp-task-table .dl-date {
+                white-space: nowrap;
+                font-size: .82rem;
+            }
+
+            .emp-task-table td.col-ws {
+                white-space: nowrap;
+                min-width: 110px;
+            }
+
+            .emp-task-table .ws-badge {
+                white-space: nowrap;
+                display: inline-flex;
+                align-items: center;
+                gap: 4px;
+            }
+
+        .ws-dot {
+            font-size: .42rem;
+        }
+
+        .ws-ip {
+            background: #dcfce7;
+            color: #15803d;
+        }
+
+        .ws-oh {
+            background: #fef3c7;
+            color: #b45309;
+        }
+
+        .ws-ob {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .ws-nc {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .ws-done {
+            background: #f0fdf4;
+            color: #15803d;
+            border: 1px solid #bbf7d0;
+        }
+
+        .emp-task-table td.col-actions {
+            white-space: nowrap;
+            width: 1%;
+            padding-right: 20px;
+        }
+
+        .emp-task-table .action-buttons {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            flex-wrap: nowrap;
+        }
+
+        .emp-task-table .btn-edit-sm,
+        .emp-task-table .btn-cancel-sm,
+        .emp-task-table .btn-warning-sm,
+        .emp-task-table .btn-view-sm {
+            padding: 5px 12px;
+            font-size: .78rem;
+            white-space: nowrap;
+        }
+
+        /* ── Filter bar ── */
+        .hf-bar {
+            padding: 14px 20px;
+            background: #f8fafc;
+            border-top: 1px solid #e2e8f0;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-bottom: 0;
+        }
+
+        .hf-bar-title {
+            font-size: .7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .5px;
+            color: #64748b;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+            .hf-bar-title i {
+                color: #2563ab;
+                font-size: .65rem;
+            }
+
+        .hf-controls {
+            display: flex;
+            align-items: flex-end;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .hf-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .hf-label {
+            font-size: .68rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .4px;
+            color: #94a3b8;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+            .hf-label i {
+                font-size: .6rem;
+                color: #2563ab;
+            }
+
+        .hf-select {
+            height: 34px;
+            padding: 0 10px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            background: #fff;
+            color: #1e293b;
+            font-size: .82rem;
+            cursor: pointer;
+            outline: none;
+            min-width: 150px;
+            transition: border-color .15s;
+        }
+
+            .hf-select:focus {
+                border-color: #2563ab;
+            }
+
+        .hf-clear {
+            height: 34px;
+            padding: 0 14px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            background: #fff;
+            color: #64748b;
+            font-size: .8rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            transition: all .15s;
+            align-self: flex-end;
+        }
+
+            .hf-clear:hover {
+                border-color: #94a3b8;
+                background: #f1f5f9;
+                color: #1e293b;
+            }
+
+        .emp-row-hidden {
+            display: none !important;
+        }
+
+        .meta-branch {
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            font-size: .72rem;
+            font-weight: 600;
+            color: #0369a1;
+            background: #e0f2fe;
+            padding: 1px 7px;
+            border-radius: 20px;
+        }
+
+            .meta-branch i {
+                font-size: .6rem;
+            }
+
+        /* ── Pagination ── */
+        .pg-wrap {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 8px;
+            padding: 12px 4px 2px;
+            border-top: 1px solid #f1f5f9;
+            margin-top: 4px;
+        }
+
+        .pg-info {
+            font-size: .78rem;
+            color: #94a3b8;
+            font-weight: 500;
+        }
+
+        .pg-btns {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            flex-wrap: wrap;
+        }
+
+        .pg-btn {
+            min-width: 32px;
+            height: 32px;
+            padding: 0 10px;
+            border: 1px solid #e2e8f0;
+            border-radius: 7px;
+            background: #fff;
+            color: #475569;
+            font-size: .78rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: all .15s;
+        }
+
+            .pg-btn:hover:not(:disabled) {
+                border-color: #2563ab;
+                color: #2563ab;
+                background: #eff6ff;
+            }
+
+            .pg-btn.active {
+                background: #2563ab;
+                color: #fff;
+                border-color: #2563ab;
+            }
+
+            .pg-btn:disabled {
+                opacity: .4;
+                cursor: not-allowed;
+            }
+
+            .pg-btn.pg-prev, .pg-btn.pg-next {
+                gap: 4px;
+            }
+    </style>
+}
+
+@section Scripts {
+
+    <script>
+
+        function applyFilters() {
+            var branch = (document.getElementById("filterBranch") || { value: "" }).value;
+            var ojt    = (document.getElementById("filterOJT")    || { value: "" }).value;
+            document.querySelectorAll(".emp-task-table tbody tr[data-branch]").forEach(function(row) {
+                var show = (!branch || row.dataset.branch === branch) &&
+                           (!ojt    || row.dataset.ojt    === ojt);
+                row.classList.toggle("emp-row-hidden", !show);
+            });
+        }
+        function clearFilters() {
+            var fb = document.getElementById("filterBranch");
+            var fo = document.getElementById("filterOJT");
+            if (fb) fb.value = "";
+            if (fo) fo.value = "";
+            applyFilters();
+        }
+
+
+        // ── Pagination ──
+        var PG_SIZE = 10;
+        var pgCurrent = 1;
+
+        function pgInit() {
+            var rows = Array.from(document.querySelectorAll('.emp-task-table tbody tr:not(.emp-row-hidden)'));
+            pgRender(rows);
+        }
+
+        function pgRender(allRows) {
+            var total = allRows.length;
+            var pages = Math.max(1, Math.ceil(total / PG_SIZE));
+            if (pgCurrent > pages) pgCurrent = pages;
+            var start = (pgCurrent - 1) * PG_SIZE;
+            var end   = start + PG_SIZE;
+
+            allRows.forEach(function(r, i) { r.style.display = (i >= start && i < end) ? '' : 'none'; });
+
+            var wrap = document.getElementById('pgWrap');
+            if (!wrap) return;
+            if (total <= PG_SIZE) { wrap.innerHTML = ''; return; }
+
+            var info = '<span class="pg-info">Showing ' + (start+1) + '–' + Math.min(end, total) + ' of ' + total + '</span>';
+
+            var btns = '<div class="pg-btns">';
+            btns += '<button class="pg-btn pg-prev" onclick="pgGo(' + (pgCurrent-1) + ')" ' + (pgCurrent===1?'disabled':'') + '><i class="fas fa-chevron-left"></i></button>';
+
+            // page number buttons — show max 5 around current
+            var lo = Math.max(1, pgCurrent - 2), hi = Math.min(pages, pgCurrent + 2);
+            if (lo > 1) btns += '<button class="pg-btn" onclick="pgGo(1)">1</button>' + (lo > 2 ? '<span class="pg-btn" style="cursor:default;border:none;">…</span>' : '');
+            for (var p = lo; p <= hi; p++) {
+                btns += '<button class="pg-btn' + (p===pgCurrent?' active':'') + '" onclick="pgGo(' + p + ')">' + p + '</button>';
+            }
+            if (hi < pages) btns += (hi < pages-1 ? '<span class="pg-btn" style="cursor:default;border:none;">…</span>' : '') + '<button class="pg-btn" onclick="pgGo(' + pages + ')">' + pages + '</button>';
+            btns += '<button class="pg-btn pg-next" onclick="pgGo(' + (pgCurrent+1) + ')" ' + (pgCurrent===pages?'disabled':'') + '><i class="fas fa-chevron-right"></i></button>';
+            btns += '</div>';
+
+            wrap.innerHTML = info + btns;
+        }
+
+        function pgGo(page) {
+            pgCurrent = page;
+            var rows = Array.from(document.querySelectorAll('.emp-task-table tbody tr:not(.emp-row-hidden)'));
+            pgRender(rows);
+        }
+
+        // Re-run pagination after filters change
+        var _origApply = window.applyFilters;
+        window.applyFilters = function() {
+            if (_origApply) _origApply();
+            pgCurrent = 1;
+            setTimeout(function() {
+                var rows = Array.from(document.querySelectorAll('.emp-task-table tbody tr:not(.emp-row-hidden)'));
+                pgRender(rows);
+            }, 0);
+        };
+
+        document.addEventListener('DOMContentLoaded', function() { pgInit(); });
+
+        function openCancelModal(taskId, taskTitle) {
+            document.getElementById('cancelTaskId').value  = taskId;
+            document.getElementById('cancelTaskName').textContent = '"' + taskTitle + '"';
+            var overlay = document.getElementById('cancelOverlay');
+            overlay.style.display = 'flex';
+            document.body.style.overflow = 'hidden';
+        }
+        function closeCancelModal() {
+            document.getElementById('cancelOverlay').style.display = 'none';
+            document.body.style.overflow = '';
+        }
+        function confirmCancel() {
+            document.getElementById('cancelTaskForm').submit();
+        }
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') closeCancelModal();
+        });
+    </script>
+}

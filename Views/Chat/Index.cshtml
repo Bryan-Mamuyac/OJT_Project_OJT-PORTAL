@@ -1,0 +1,1836 @@
+﻿@functions {
+    string FormatConvTime(DateTime dt)
+    {
+        var now = DateTime.Now;
+        if (dt.Date == now.Date) return dt.ToString("h:mm tt");
+        if (dt.Date == now.Date.AddDays(-1)) return "Yesterday";
+        return dt.ToString("MMM dd");
+    }
+}
+@{
+    ViewData["Title"] = "My Chat";
+    var convos = ViewBag.Conversations as IEnumerable<dynamic> ?? Enumerable.Empty<dynamic>();
+    var openConvId = (int)(ViewBag.OpenConvId ?? 0);
+    var myId = (int)(ViewBag.MyId ?? 0);
+    var myRole = ViewBag.MyRole as string ?? "";
+    var myName = ViewBag.MyName as string ?? "";
+    var emptyStyle = openConvId > 0 ? "display:none" : "";
+    var activeStyle = openConvId > 0 ? "" : "display:none";
+}
+
+<div class="cx-shell">
+    <div class="cx-sidebar" id="chatLeft">
+        <div class="cx-sidebar-top">
+            <div class="cx-sidebar-title"><i class="fas fa-comments"></i><span>Messages</span></div>
+            <button class="cx-compose-btn" id="newChatBtn" title="New conversation"><i class="fas fa-edit"></i></button>
+        </div>
+        <div class="cx-search-wrap">
+            <i class="fas fa-search"></i>
+            <input id="chatSearch" type="text" placeholder="Search conversations..." autocomplete="off" />
+        </div>
+        <div class="cx-conv-list" id="chatConvList">
+            @if (!convos.Any())
+            {
+                <div class="cx-conv-empty">
+                    <i class="fas fa-comment-dots"></i>
+                    <p>No conversations yet</p>
+                    <span>Tap the edit icon above to start</span>
+                </div>
+            }
+            else
+            {
+                foreach (var c in convos)
+                {
+                    string? rawMsg = c.LastMessage as string;
+                    string? rawFile = c.LastFile as string;
+                    string? rawPic = c.OtherPic as string;
+                    string lastMsg = !string.IsNullOrEmpty(rawMsg)
+                    ? (rawMsg.Length > 38 ? rawMsg[..38] + "..." : rawMsg)
+                    : (!string.IsNullOrEmpty(rawFile) ? "Attachment" : "No messages yet");
+                    string timeStr = c.LastSentAt != null ? FormatConvTime((DateTime)c.LastSentAt) : "";
+                    int unread = (int)c.UnreadCount;
+                    string pic = !string.IsNullOrEmpty(rawPic) ? "/uploads/profiles/" + rawPic : "";
+                    string otherName = (string)c.OtherName;
+                    string otherRole = (string)c.OtherRole;
+                    string[] np = otherName.Split(' ');
+                    string initials = np.Length > 1 ? "" + np[0][0] + np[1][0] : otherName[..1];
+                    string cls = "cx-conv-item" + (c.ConversationId == openConvId ? " active" : "") + (unread > 0 ? " unread" : "");
+                    string avBg = string.IsNullOrEmpty(pic) ? "" : "background:transparent";
+                    <div class="@cls"
+                         data-conv-id="@c.ConversationId"
+                         data-other-id="@c.OtherId"
+                         data-other-name="@otherName"
+                         data-other-role="@otherRole"
+                         data-other-dept="@c.OtherDept"
+                         data-other-branch="@c.OtherBranch"
+                         data-other-pic="@pic"
+                         onclick="openConv(@c.ConversationId, this)">
+                        <div class="cx-conv-av" style="@avBg">
+                            @if (!string.IsNullOrEmpty(pic))
+                            {
+                                <img src="@pic" alt="@otherName" />
+                            }
+                            else
+                            {
+
+                                <span>@initials.ToUpper()</span>
+                            }
+                            <span class="cx-role-pip cx-role-@otherRole.ToLower()"></span>
+                        </div>
+                        <div class="cx-conv-info">
+                            <div class="cx-conv-row1">
+                                <span class="cx-conv-name">@otherName</span>
+                                <span class="cx-conv-ts">@timeStr</span>
+                            </div>
+                            <div class="cx-conv-row2">
+                                <span class="cx-conv-prev">@lastMsg</span>
+                                @if (unread > 0)
+                                {
+                                    <span class="cx-unread-dot">@unread</span>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                }
+            }
+        </div>
+    </div>
+
+    <div class="cx-main" id="chatRight">
+        <div class="cx-empty" id="chatEmptyState" style="@emptyStyle">
+            <div class="cx-empty-icon"><i class="fas fa-comments"></i></div>
+            <h3>Your Messages</h3>
+            <p>Select a conversation or start a new one</p>
+            <button class="cx-start-btn" onclick="document.getElementById('newChatBtn').click()">
+                <i class="fas fa-edit"></i> New Conversation
+            </button>
+        </div>
+        <div class="cx-convo" id="chatActive" style="@activeStyle">
+            <div class="cx-hdr">
+                <button class="cx-back-btn" onclick="showLeftOnMobile()"><i class="fas fa-arrow-left"></i></button>
+                <div class="cx-hdr-av" id="chatHdrAvatar"></div>
+                <div class="cx-hdr-info">
+                    <div class="cx-hdr-name" id="chatHdrName">--</div>
+                    <div class="cx-hdr-meta" id="chatHdrMeta"></div>
+                </div>
+            </div>
+            <div class="cx-msgs" id="chatMessages">
+                <div class="cx-loading"><div class="cx-spinner"></div></div>
+            </div>
+            <div class="cx-input-bar">
+                <div class="cx-file-preview" id="chatFilePreview" style="display:none">
+                    <div class="cx-file-chip">
+                        <i class="fas fa-paperclip" id="chatFileChipIcon"></i>
+                        <span id="chatFileChipName"></span>
+                        <button onclick="clearFile()"><i class="fas fa-times"></i></button>
+                    </div>
+                </div>
+                <div class="cx-input-row">
+                    <button class="cx-attach-btn" onclick="document.getElementById('chatFileInput').click()" title="Attach">
+                        <i class="fas fa-paperclip"></i>
+                    </button>
+                    <input type="file" id="chatFileInput" style="display:none"
+                           accept=".png,.jpg,.jpeg,.pdf,.docx,.doc,.xlsx,.xls,.pptx,.ppt,.pbix,.zip"
+                           onchange="onFileSelected(this)" />
+                    <textarea id="chatMsgInput" class="cx-textarea" placeholder="Type a message..." rows="1"
+                              oninput="autoGrow(this);updateCharCount(this);" maxlength="500"></textarea>
+                    <span class="cx-char-count" id="charCount">500</span>
+                    <button class="cx-send-btn" id="chatSendBtn" onclick="sendMessage()">
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@Html.AntiForgeryToken()
+
+<!-- NEW CHAT MODAL -->
+<div class="cx-modal-bg" id="newChatModal" style="display:none">
+    <div class="cx-modal">
+        <div class="cx-modal-hdr">
+            <span><i class="fas fa-user-plus"></i> New Conversation</span>
+            <button onclick="closeNewChatModal()"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="cx-modal-filters">
+            <input id="pickSearch" type="text" placeholder="Search by name..." oninput="filterPeople()" class="cx-search-full" />
+            <select id="pickRole" onchange="loadPeople()">
+                <option value="">All Roles</option>
+                <option value="Employee">Employee</option>
+                <option value="OJT">OJT</option>
+            </select>
+            <select id="pickBranch" onchange="loadPeople()">
+                <option value="">All Branches</option>
+                <option value="Agoo">Agoo</option>
+                <option value="Reina Mercedes">Reina Mercedes</option>
+                <option value="Candon">Candon</option>
+                <option value="Pasig">Pasig</option>
+            </select>
+            <select id="pickDept" onchange="loadPeople()">
+                <option value="">All Departments</option>
+                <option value="IT">IT</option>
+                <option value="HR">HR</option>
+                <option value="Finance">Finance</option>
+                <option value="Operations">Operations</option>
+                <option value="Marketing">Marketing</option>
+                <option value="Legal">Legal</option>
+                <option value="Accounting">Accounting</option>
+                <option value="Admin">Admin</option>
+                <option value="Engineering">Engineering</option>
+                <option value="Sales">Sales</option>
+                <option value="Logistics">Logistics</option>
+                <option value="Procurement">Procurement</option>
+            </select>
+        </div>
+        <div class="cx-people-list" id="chatPeopleList">
+            <div class="cx-loading"><div class="cx-spinner"></div></div>
+        </div>
+    </div>
+</div>
+
+<!-- DELETE CONFIRM MODAL -->
+<div class="cx-modal-bg" id="deleteModal" style="display:none">
+    <div class="cx-modal cx-modal-sm">
+        <div class="cx-modal-hdr cx-modal-hdr-danger">
+            <span><i class="fas fa-trash-alt"></i> Delete Message</span>
+            <button onclick="closeDeleteModal()"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="cx-del-body">
+            <p>This will permanently delete the message. This action cannot be undone.</p>
+            <div class="cx-del-actions">
+                <button class="cx-del-cancel" onclick="closeDeleteModal()">Cancel</button>
+                <button class="cx-del-confirm" id="deleteConfirmBtn" onclick="confirmDelete()">Delete</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Styles {
+    <style>
+        .cx-shell {
+            display: flex;
+            height: calc(100vh - 64px);
+            overflow: hidden;
+            background: #f0f4f8;
+        }
+
+        .cx-sidebar {
+            width: 300px;
+            min-width: 300px;
+            display: flex;
+            flex-direction: column;
+            background: #fff;
+            border-right: 1px solid #e8edf2;
+            overflow: hidden;
+        }
+
+        .cx-sidebar-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 16px 10px;
+        }
+
+        .cx-sidebar-title {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: .95rem;
+            font-weight: 700;
+            color: #0f172a;
+        }
+
+            .cx-sidebar-title i {
+                color: #2563ab;
+                font-size: 1rem;
+            }
+
+        .cx-compose-btn {
+            width: 34px;
+            height: 34px;
+            background: #eff6ff;
+            color: #2563ab;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: .88rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all .15s;
+        }
+
+            .cx-compose-btn:hover {
+                background: #2563ab;
+                color: #fff;
+            }
+
+        .cx-search-wrap {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 0 12px 10px;
+            background: #f8fafc;
+            border: 1px solid #e8edf2;
+            border-radius: 10px;
+            padding: 0 12px;
+            height: 36px;
+        }
+
+            .cx-search-wrap i {
+                color: #94a3b8;
+                font-size: .78rem;
+                flex-shrink: 0;
+            }
+
+            .cx-search-wrap input {
+                border: none;
+                background: transparent;
+                outline: none;
+                font-size: .82rem;
+                color: #374151;
+                width: 100%;
+            }
+
+        .cx-conv-list {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+            .cx-conv-list::-webkit-scrollbar {
+                width: 3px;
+            }
+
+            .cx-conv-list::-webkit-scrollbar-thumb {
+                background: #e2e8f0;
+                border-radius: 3px;
+            }
+
+        .cx-conv-empty {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 40px 20px;
+            color: #94a3b8;
+            text-align: center;
+        }
+
+            .cx-conv-empty i {
+                font-size: 2.2rem;
+                color: #cbd5e1;
+            }
+
+            .cx-conv-empty p {
+                font-size: .85rem;
+                font-weight: 600;
+                margin: 0;
+            }
+
+            .cx-conv-empty span {
+                font-size: .75rem;
+            }
+
+        .cx-conv-item {
+            display: flex;
+            align-items: center;
+            gap: 11px;
+            padding: 10px 14px;
+            cursor: pointer;
+            border-bottom: 1px solid #f8fafc;
+            transition: background .12s;
+            position: relative;
+        }
+
+            .cx-conv-item:hover {
+                background: #f8fafc;
+            }
+
+            .cx-conv-item.active {
+                background: #eff6ff;
+            }
+
+                .cx-conv-item.active::before {
+                    content: '';
+                    position: absolute;
+                    left: 0;
+                    top: 0;
+                    bottom: 0;
+                    width: 3px;
+                    background: #2563ab;
+                    border-radius: 0 3px 3px 0;
+                }
+
+            .cx-conv-item.unread .cx-conv-name {
+                font-weight: 700;
+                color: #0f172a;
+            }
+
+            .cx-conv-item.unread .cx-conv-prev {
+                color: #374151;
+                font-weight: 500;
+            }
+
+        .cx-conv-av {
+            width: 44px;
+            height: 44px;
+            flex-shrink: 0;
+            border-radius: 50%;
+            position: relative;
+            background: linear-gradient(135deg,#2563ab,#1e40af);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-size: .88rem;
+            font-weight: 700;
+            overflow: visible;
+        }
+
+            .cx-conv-av img {
+                width: 44px;
+                height: 44px;
+                border-radius: 50%;
+                object-fit: cover;
+            }
+
+        .cx-role-pip {
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            border: 2px solid #fff;
+        }
+
+        .cx-role-employee {
+            background: #2563ab;
+        }
+
+        .cx-role-ojt {
+            background: #16a34a;
+        }
+
+        .cx-role-admin {
+            background: #7c3aed;
+        }
+
+        .cx-conv-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .cx-conv-row1 {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 3px;
+        }
+
+        .cx-conv-name {
+            font-size: .84rem;
+            font-weight: 600;
+            color: #1e293b;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .cx-conv-ts {
+            font-size: .68rem;
+            color: #94a3b8;
+            white-space: nowrap;
+            flex-shrink: 0;
+            margin-left: 6px;
+        }
+
+        .cx-conv-row2 {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .cx-conv-prev {
+            font-size: .76rem;
+            color: #94a3b8;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            flex: 1;
+        }
+
+        .cx-unread-dot {
+            background: #dc2626;
+            color: #fff;
+            border-radius: 10px;
+            font-size: .64rem;
+            font-weight: 700;
+            padding: 1px 6px;
+            min-width: 18px;
+            text-align: center;
+            flex-shrink: 0;
+            margin-left: 6px;
+        }
+
+        .cx-main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: #f0f4f8;
+            overflow: hidden;
+        }
+
+        .cx-empty {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            color: #94a3b8;
+            text-align: center;
+            padding: 40px;
+        }
+
+        .cx-empty-icon {
+            width: 88px;
+            height: 88px;
+            border-radius: 50%;
+            background: #e2e8f0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.2rem;
+            color: #94a3b8;
+        }
+
+        .cx-empty h3 {
+            margin: 0;
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: #475569;
+        }
+
+        .cx-empty p {
+            margin: 0;
+            font-size: .84rem;
+        }
+
+        .cx-start-btn {
+            background: #2563ab;
+            color: #fff;
+            border: none;
+            border-radius: 10px;
+            padding: 10px 24px;
+            font-size: .84rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            transition: background .15s;
+            margin-top: 4px;
+        }
+
+            .cx-start-btn:hover {
+                background: #1d4ed8;
+            }
+
+        .cx-convo {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .cx-hdr {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 18px;
+            background: #fff;
+            border-bottom: 1px solid #e8edf2;
+            box-shadow: 0 1px 4px rgba(0,0,0,.04);
+        }
+
+        .cx-back-btn {
+            display: none;
+            background: none;
+            border: none;
+            color: #64748b;
+            font-size: 1rem;
+            cursor: pointer;
+            padding: 4px;
+            margin-right: 2px;
+        }
+
+        .cx-hdr-av {
+            width: 40px;
+            height: 40px;
+            flex-shrink: 0;
+            border-radius: 50%;
+            overflow: hidden;
+            background: linear-gradient(135deg,#2563ab,#1e40af);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-size: .88rem;
+            font-weight: 700;
+        }
+
+            .cx-hdr-av img {
+                width: 100%;
+                height: 100%;
+                object-fit: cover;
+            }
+
+        .cx-hdr-name {
+            font-size: .92rem;
+            font-weight: 700;
+            color: #0f172a;
+        }
+
+        .cx-hdr-meta {
+            font-size: .72rem;
+            color: #64748b;
+            margin-top: 1px;
+        }
+
+        .cx-msgs {
+            flex: 1;
+            overflow-y: auto;
+            padding: 18px 20px 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+            scroll-behavior: smooth;
+        }
+
+            .cx-msgs::-webkit-scrollbar {
+                width: 4px;
+            }
+
+            .cx-msgs::-webkit-scrollbar-thumb {
+                background: #cbd5e1;
+                border-radius: 4px;
+            }
+
+        .cx-loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex: 1;
+            padding: 30px;
+        }
+
+        .cx-spinner {
+            width: 22px;
+            height: 22px;
+            border: 3px solid #e2e8f0;
+            border-top-color: #2563ab;
+            border-radius: 50%;
+            animation: cxSpin .7s linear infinite;
+        }
+
+        @@keyframes cxSpin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .cx-date-div {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 12px 0 8px;
+            font-size: .68rem;
+            color: #94a3b8;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: .5px;
+        }
+
+            .cx-date-div::before, .cx-date-div::after {
+                content: '';
+                flex: 1;
+                height: 1px;
+                background: #e8edf2;
+            }
+
+        .cx-msg-row {
+            display: flex;
+            align-items: flex-end;
+            gap: 8px;
+            margin-bottom: 1px;
+        }
+
+            .cx-msg-row.mine {
+                flex-direction: row-reverse;
+            }
+
+                .cx-msg-row + .cx-msg-row.mine, .cx-msg-row.mine + .cx-msg-row {
+                    margin-top: 6px;
+                }
+
+        .cx-msg-av {
+            width: 30px;
+            height: 30px;
+            flex-shrink: 0;
+            border-radius: 50%;
+            background: linear-gradient(135deg,#2563ab,#1e40af);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-size: .62rem;
+            font-weight: 700;
+            overflow: hidden;
+            align-self: flex-end;
+            margin-bottom: 2px;
+        }
+
+            .cx-msg-av img {
+                width: 100%;
+                height: 100%;
+                object-fit: cover;
+            }
+
+        .cx-av-spacer {
+            width: 30px;
+            flex-shrink: 0;
+        }
+
+        .cx-msg-wrap {
+            display: flex;
+            flex-direction: column;
+            max-width: 66%;
+            min-width: 0;
+            position: relative;
+        }
+
+        .cx-msg-row.mine .cx-msg-wrap {
+            align-items: flex-end;
+        }
+
+        .cx-msg-sender {
+            font-size: .68rem;
+            font-weight: 600;
+            color: #64748b;
+            margin-bottom: 3px;
+            padding: 0 4px;
+        }
+
+        .cx-bubble {
+            background: #fff;
+            color: #1e293b;
+            border-radius: 4px 18px 18px 18px;
+            padding: 9px 13px;
+            font-size: .855rem;
+            line-height: 1.55;
+            box-shadow: 0 1px 3px rgba(0,0,0,.07);
+            word-break: break-word;
+            position: relative;
+            transition: box-shadow .15s;
+        }
+
+            .cx-bubble:hover {
+                box-shadow: 0 2px 8px rgba(0,0,0,.11);
+            }
+
+        .cx-msg-row.mine .cx-bubble {
+            background: #2563ab;
+            color: #fff;
+            border-radius: 18px 4px 18px 18px;
+            box-shadow: 0 2px 8px rgba(37,99,171,.25);
+        }
+
+            .cx-msg-row.mine .cx-bubble:hover {
+                box-shadow: 0 4px 14px rgba(37,99,171,.35);
+            }
+
+        .cx-delete-btn {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            width: 22px;
+            height: 22px;
+            background: #dc2626;
+            color: #fff;
+            border: none;
+            border-radius: 50%;
+            font-size: .58rem;
+            cursor: pointer;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 6px rgba(220,38,38,.4);
+            transition: transform .15s,background .15s;
+            z-index: 2;
+        }
+
+            .cx-delete-btn:hover {
+                background: #b91c1c;
+                transform: scale(1.15);
+            }
+
+        .cx-msg-row.mine .cx-msg-wrap:hover .cx-delete-btn {
+            display: flex;
+        }
+
+        .cx-msg-time {
+            font-size: .65rem;
+            color: #94a3b8;
+            margin-top: 3px;
+            padding: 0 4px;
+        }
+
+        .cx-msg-row.mine .cx-msg-time {
+            text-align: right;
+        }
+
+        .cx-msg-img {
+            max-width: 220px;
+            border-radius: 10px;
+            cursor: pointer;
+            display: block;
+            margin-top: 5px;
+            transition: opacity .15s;
+        }
+
+            .cx-msg-img:hover {
+                opacity: .9;
+            }
+
+        .cx-file-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(0,0,0,.06);
+            border-radius: 8px;
+            padding: 7px 11px;
+            margin-top: 5px;
+            text-decoration: none;
+            color: inherit;
+            font-size: .78rem;
+            font-weight: 500;
+            transition: background .15s;
+        }
+
+        .cx-msg-row.mine .cx-file-link {
+            background: rgba(255,255,255,.2);
+            color: #fff;
+        }
+
+        .cx-file-link:hover {
+            background: rgba(0,0,0,.1);
+        }
+
+        .cx-msg-row.mine .cx-file-link:hover {
+            background: rgba(255,255,255,.3);
+        }
+
+        .cx-file-link i {
+            font-size: .88rem;
+        }
+
+        .cx-input-bar {
+            background: #fff;
+            border-top: 1px solid #e8edf2;
+            padding: 10px 16px 14px;
+        }
+
+        .cx-file-preview {
+            margin-bottom: 8px;
+        }
+
+        .cx-file-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+            border-radius: 8px;
+            padding: 5px 10px;
+            font-size: .78rem;
+            color: #1e40af;
+        }
+
+            .cx-file-chip button {
+                background: none;
+                border: none;
+                color: #94a3b8;
+                cursor: pointer;
+                font-size: .72rem;
+            }
+
+                .cx-file-chip button:hover {
+                    color: #dc2626;
+                }
+
+        .cx-input-row {
+            display: flex;
+            align-items: flex-end;
+            gap: 8px;
+        }
+
+        .cx-char-count {
+            font-size: .68rem;
+            color: #94a3b8;
+            flex-shrink: 0;
+            align-self: flex-end;
+            padding-bottom: 10px;
+            white-space: nowrap;
+        }
+
+            .cx-char-count.warn {
+                color: #d97706;
+                font-weight: 600;
+            }
+
+            .cx-char-count.limit {
+                color: #dc2626;
+                font-weight: 700;
+            }
+
+        .cx-attach-btn {
+            width: 38px;
+            height: 38px;
+            flex-shrink: 0;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            color: #64748b;
+            cursor: pointer;
+            font-size: .88rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all .15s;
+        }
+
+            .cx-attach-btn:hover {
+                background: #eff6ff;
+                color: #2563ab;
+                border-color: #bfdbfe;
+            }
+
+        .cx-textarea {
+            flex: 1;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 9px 13px;
+            font-size: .84rem;
+            color: #1e293b;
+            resize: none;
+            outline: none;
+            font-family: inherit;
+            line-height: 1.5;
+            min-height: 38px;
+            max-height: 120px;
+            overflow-y: auto;
+            transition: border-color .15s;
+            background: #fff;
+        }
+
+            .cx-textarea:focus {
+                border-color: #2563ab;
+                box-shadow: 0 0 0 3px rgba(37,99,171,.08);
+            }
+
+        .cx-send-btn {
+            width: 38px;
+            height: 38px;
+            flex-shrink: 0;
+            background: #2563ab;
+            color: #fff;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: .9rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background .15s,transform .1s;
+        }
+
+            .cx-send-btn:hover {
+                background: #1d4ed8;
+                transform: scale(1.05);
+            }
+
+            .cx-send-btn:disabled {
+                background: #93c5fd;
+                cursor: not-allowed;
+                transform: none;
+            }
+
+        .cx-modal-bg {
+            position: fixed;
+            inset: 0;
+            background: rgba(15,23,42,.5);
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .cx-modal {
+            background: #fff;
+            border-radius: 18px;
+            width: 640px;
+            max-width: 96vw;
+            max-height: 90vh;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 24px 60px rgba(0,0,0,.2);
+            overflow: hidden;
+        }
+
+        .cx-modal-sm {
+            width: 380px;
+        }
+
+        .cx-modal-hdr {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 15px 18px;
+            background: #2563ab;
+            color: #fff;
+            font-size: .9rem;
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+
+        .cx-modal-hdr-danger {
+            background: #dc2626;
+        }
+
+        .cx-modal-hdr button {
+            background: rgba(255,255,255,.2);
+            border: none;
+            color: #fff;
+            border-radius: 7px;
+            width: 28px;
+            height: 28px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: .78rem;
+        }
+
+            .cx-modal-hdr button:hover {
+                background: rgba(255,255,255,.35);
+            }
+
+        .cx-modal-filters {
+            display: flex;
+            gap: 7px;
+            flex-wrap: wrap;
+            padding: 12px 14px 10px;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+            .cx-modal-filters select, .cx-modal-filters input {
+                flex: 1;
+                min-width: 0;
+                border: 1px solid #e2e8f0;
+                border-radius: 8px;
+                padding: 8px 12px;
+                font-size: .82rem;
+                color: #374151;
+                background: #f8fafc;
+                outline: none;
+            }
+
+                .cx-modal-filters select:focus, .cx-modal-filters input:focus {
+                    border-color: #2563ab;
+                }
+
+        .cx-search-full {
+            flex: 0 0 100%;
+            width: 100%;
+        }
+
+        .cx-people-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 6px 0;
+        }
+
+            .cx-people-list::-webkit-scrollbar {
+                width: 3px;
+            }
+
+            .cx-people-list::-webkit-scrollbar-thumb {
+                background: #e2e8f0;
+                border-radius: 3px;
+            }
+
+        .cx-person {
+            display: flex;
+            align-items: center;
+            gap: 11px;
+            padding: 10px 16px;
+            cursor: pointer;
+            transition: background .12s;
+        }
+
+            .cx-person:hover {
+                background: #f8fafc;
+            }
+
+        .cx-person-av {
+            width: 40px;
+            height: 40px;
+            flex-shrink: 0;
+            border-radius: 50%;
+            overflow: hidden;
+            background: linear-gradient(135deg,#2563ab,#1e40af);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-size: .82rem;
+            font-weight: 700;
+        }
+
+            .cx-person-av img {
+                width: 100%;
+                height: 100%;
+                object-fit: cover;
+            }
+
+        .cx-person-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .cx-person-name {
+            font-size: .84rem;
+            font-weight: 600;
+            color: #0f172a;
+        }
+
+        .cx-person-meta {
+            font-size: .72rem;
+            color: #94a3b8;
+            margin-top: 1px;
+        }
+
+        .cx-role-badge {
+            font-size: .65rem;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 20px;
+            flex-shrink: 0;
+        }
+
+        .rb-employee {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .rb-ojt {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .rb-admin {
+            background: #ede9fe;
+            color: #5b21b6;
+        }
+
+        .cx-people-empty {
+            text-align: center;
+            padding: 28px;
+            color: #94a3b8;
+            font-size: .83rem;
+        }
+
+        .cx-del-body {
+            padding: 20px 20px 16px;
+        }
+
+            .cx-del-body p {
+                font-size: .84rem;
+                color: #475569;
+                margin: 0 0 18px;
+                line-height: 1.6;
+            }
+
+        .cx-del-actions {
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+        }
+
+        .cx-del-cancel {
+            padding: 8px 18px;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+            background: #fff;
+            color: #64748b;
+            font-size: .82rem;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+            .cx-del-cancel:hover {
+                background: #f8fafc;
+            }
+
+        .cx-del-confirm {
+            padding: 8px 18px;
+            border-radius: 8px;
+            border: none;
+            background: #dc2626;
+            color: #fff;
+            font-size: .82rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background .15s;
+        }
+
+            .cx-del-confirm:hover {
+                background: #b91c1c;
+            }
+
+        .cx-toast {
+            position: fixed;
+            bottom: 28px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 10px 20px;
+            border-radius: 10px;
+            font-size: .83rem;
+            font-weight: 600;
+            color: #fff;
+            z-index: 99999;
+            pointer-events: none;
+            opacity: 1;
+            transition: opacity .4s;
+            white-space: nowrap;
+            box-shadow: 0 4px 16px rgba(0,0,0,.18);
+        }
+
+            .cx-toast.error {
+                background: #dc2626;
+            }
+
+            .cx-toast.warn {
+                background: #d97706;
+            }
+
+        .cx-lightbox {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,.85);
+            z-index: 10000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: zoom-out;
+        }
+
+            .cx-lightbox img {
+                max-width: 92vw;
+                max-height: 90vh;
+                border-radius: 8px;
+            }
+
+        @@media(max-width:680px) {
+            .cx-sidebar {
+                position: absolute;
+                left: 0;
+                top: 0;
+                bottom: 0;
+                z-index: 10;
+                width: 100%;
+            }
+
+                .cx-sidebar.hidden {
+                    display: none;
+                }
+
+            .cx-back-btn {
+                display: flex !important;
+            }
+        }
+    </style>
+}
+
+@section Scripts {
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
+    <script>
+        (function(){
+            var ME           = @myId;
+            var CSRF         = typeof CSRF_TOKEN !== 'undefined' ? CSRF_TOKEN : '';
+            var getUrl       = '@Url.Action("GetMessages", "Chat")';
+            var sendUrl      = '@Url.Action("SendMessage", "Chat")';
+            var getUsersUrl  = '@Url.Action("GetUsers", "Chat")';
+            var markReadUrl  = '@Url.Action("MarkRead", "Chat")';
+            var getOrCreate  = '@Url.Action("GetOrCreateConversation", "Chat")';
+            var getConvUrl   = '@Url.Action("GetConversation", "Chat")';
+            var deleteUrl    = '@Url.Action("DeleteMessage", "Chat")';
+            var indexUrl     = '@Url.Action("Index", "Chat")';
+
+            var activeConvId  = @openConvId;
+            var lastMsgId     = 0;
+            var pollTimer     = null;
+            var allPeople     = [];
+            var selectedFile  = null;
+            var lastDateLabel = '';
+            var pendingDelete = 0;
+            var connection    = null;
+            var ALL_CONV_IDS  = [@string.Join(",", convos.Select(c => (int)c.ConversationId))];
+
+            window.addEventListener('DOMContentLoaded', function(){
+                startSignalR();
+                if (activeConvId > 0) {
+                    var el = document.querySelector('[data-conv-id="' + activeConvId + '"]');
+                    if (el) openConv(activeConvId, el);
+                    else    loadConvAndOpen(activeConvId);
+                }
+                document.getElementById('chatMsgInput').addEventListener('keydown', function(e){
+                    if (e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); sendMessage(); }
+                });
+            });
+
+            function startSignalR(){
+                connection = new signalR.HubConnectionBuilder()
+                    .withUrl('/chatHub')
+                    .withAutomaticReconnect()
+                    .build();
+
+                connection.on('ReceiveMessage', function(m){
+                    if (m.senderId === ME) return;
+                    if (String(m.conversationId) === String(activeConvId)) {
+                        var ph = document.getElementById('chatMessages').querySelector('[data-placeholder]');
+                        if (ph) ph.remove();
+                        appendMessage(m);
+                        lastMsgId = m.messageId;
+                        scrollToBottom();
+                    }
+                    updateConvListItem(m.conversationId, m);
+                });
+
+                connection.on('MessageDeleted', function(msgId){
+                    removeMessageFromDOM(msgId);
+                    // Also refresh the conv preview for both sender and receiver
+                    refreshConvPreview(activeConvId);
+                });
+
+                connection.on('UnreadCountChanged', function(){
+                    updateChatBadge();
+                });
+
+                connection.start().then(function(){
+                    // Join ALL conversation groups so we get push updates for every convo preview
+                    ALL_CONV_IDS.forEach(function(cid){ joinConvGroup(cid); });
+                }).catch(function(err){
+                    console.warn('SignalR unavailable, using fallback polling:', err);
+                    if (activeConvId > 0)
+                        pollTimer = setInterval(function(){ fetchMessages(false); }, 3000);
+                });
+
+                connection.onreconnected(function(){
+                    // Re-join all groups after reconnect
+                    ALL_CONV_IDS.forEach(function(cid){ joinConvGroup(cid); });
+                });
+            }
+
+            function joinConvGroup(convId){
+                if (connection && connection.state === signalR.HubConnectionState.Connected)
+                    connection.invoke('JoinConversation', String(convId)).catch(function(e){ console.error(e); });
+            }
+            function leaveConvGroup(convId){
+                if (connection && connection.state === signalR.HubConnectionState.Connected)
+                    connection.invoke('LeaveConversation', String(convId)).catch(function(e){ console.error(e); });
+            }
+
+            window.openConv = function(convId, el){
+                document.querySelectorAll('.cx-conv-item').forEach(function(i){ i.classList.remove('active'); });
+                if (el) el.classList.add('active');
+                if (activeConvId && activeConvId !== convId) leaveConvGroup(activeConvId);
+                activeConvId  = convId;
+                lastMsgId     = 0;
+                lastDateLabel = '';
+                clearInterval(pollTimer); pollTimer = null;
+                if (el) setHeader(el.dataset.otherName, el.dataset.otherRole, el.dataset.otherDept, el.dataset.otherBranch, el.dataset.otherPic);
+                document.getElementById('chatEmptyState').style.display = 'none';
+                document.getElementById('chatActive').style.display     = '';
+                document.getElementById('chatMessages').innerHTML       = '<div class="cx-loading"><div class="cx-spinner"></div></div>';
+                document.getElementById('chatLeft').classList.add('hidden');
+                joinConvGroup(convId);
+                fetchMessages(true);
+                if (!connection || connection.state !== signalR.HubConnectionState.Connected)
+                    pollTimer = setInterval(function(){ fetchMessages(false); }, 3000);
+                setTimeout(function(){ markRead(convId); }, 500);
+            };
+
+            function loadConvAndOpen(convId){
+                fetch(getConvUrl + '?conversationId=' + convId + '&_=' + Date.now(), {credentials:'same-origin', cache:'no-store'})
+                    .then(function(r){ return r.json(); })
+                    .then(function(d){
+                        setHeader(d.otherName, d.otherRole, d.otherDept, d.otherBranch, d.otherPic);
+                        document.getElementById('chatEmptyState').style.display = 'none';
+                        document.getElementById('chatActive').style.display     = '';
+                        document.getElementById('chatMessages').innerHTML       = '<div class="cx-loading"><div class="cx-spinner"></div></div>';
+                        joinConvGroup(convId);
+                        fetchMessages(true);
+                        if (!connection || connection.state !== signalR.HubConnectionState.Connected)
+                            pollTimer = setInterval(function(){ fetchMessages(false); }, 3000);
+                    });
+            }
+
+            function setHeader(name, role, dept, branch, pic){
+                var av = document.getElementById('chatHdrAvatar');
+                if (pic) { av.innerHTML = '<img src="' + pic + '" alt="">'; }
+                else {
+                    var ini = (name||'').split(' ').map(function(p){ return p[0]; }).join('').substring(0,2).toUpperCase();
+                    av.innerHTML = '<span>' + ini + '</span>';
+                }
+                document.getElementById('chatHdrName').textContent = name || '';
+                var meta = (role||'') + (dept ? ' · ' + dept : '') + (branch ? ' · ' + branch : '');
+                document.getElementById('chatHdrMeta').textContent = meta;
+            }
+
+            function fetchMessages(initial){
+                if (!activeConvId) return;
+                fetch(getUrl + '?conversationId=' + activeConvId + '&afterId=' + lastMsgId + '&_=' + Date.now(),
+                      {credentials:'same-origin', cache:'no-store'})
+                    .then(function(r){ return r.json(); })
+                    .then(function(msgs){
+                        if (initial) { document.getElementById('chatMessages').innerHTML = ''; lastDateLabel = ''; }
+                        if (msgs.length === 0 && initial) {
+                            var container2 = document.getElementById('chatMessages');
+                            if (!container2.querySelector('[data-placeholder]')) {
+                                var ph = document.createElement('div');
+                                ph.dataset.placeholder = '1';
+                                ph.style.cssText = 'text-align:center;color:#94a3b8;font-size:.81rem;padding:32px;';
+                                ph.textContent = 'No messages yet. Say hello!';
+                                container2.appendChild(ph);
+                            }
+                        }
+                        msgs.forEach(function(m){ appendMessage(m); });
+                        if (msgs.length > 0) {
+                            lastMsgId = msgs[msgs.length-1].messageId;
+                            scrollToBottom();
+                            updateChatBadge();
+                        }
+                    }).catch(function(){});
+            }
+
+            function appendMessage(m){
+                var container = document.getElementById('chatMessages');
+                var ph = container.querySelector('[data-placeholder]');
+                if (ph) ph.remove();
+                var sentDate  = new Date(m.sentAt);
+                var dateLabel = sentDate.toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'});
+                if (dateLabel !== lastDateLabel) {
+                    lastDateLabel = dateLabel;
+                    var dd = document.createElement('div');
+                    dd.className = 'cx-date-div';
+                    dd.textContent = dateLabel;
+                    container.appendChild(dd);
+                }
+                var isMine = m.senderId === ME;
+                var row = document.createElement('div');
+                row.className    = 'cx-msg-row' + (isMine ? ' mine' : '');
+                row.dataset.msgId = m.messageId;
+                var av;
+                if (!isMine) {
+                    av = document.createElement('div');
+                    av.className = 'cx-msg-av';
+                    if (m.senderPic) { av.innerHTML = '<img src="/uploads/profiles/' + m.senderPic + '" alt="">'; }
+                    else { av.textContent = (m.senderName||'').split(' ').map(function(p){ return p[0]; }).join('').substring(0,2).toUpperCase(); }
+                } else {
+                    av = document.createElement('div');
+                    av.className = 'cx-av-spacer';
+                }
+                var wrap = document.createElement('div');
+                wrap.className = 'cx-msg-wrap';
+                if (!isMine) {
+                    var sn = document.createElement('div');
+                    sn.className = 'cx-msg-sender';
+                    sn.textContent = m.senderName || '';
+                    wrap.appendChild(sn);
+                }
+                var bubble = document.createElement('div');
+                bubble.className = 'cx-bubble';
+                if (isMine) {
+                    var db = document.createElement('button');
+                    db.className = 'cx-delete-btn';
+                    db.title     = 'Delete message';
+                    db.innerHTML = '<i class="fas fa-trash-alt"></i>';
+                    db.addEventListener('click', (function(mid){ return function(e){ e.stopPropagation(); openDeleteModal(mid); }; })(m.messageId));
+                    bubble.appendChild(db);
+                }
+                if (m.body) {
+                    var txt = document.createElement('span');
+                    txt.textContent = m.body;
+                    bubble.appendChild(txt);
+                }
+                if (m.attachedFilePath) {
+                    if (m.fileType === 'image') {
+                        var img = document.createElement('img');
+                        img.src = m.attachedFilePath; img.className = 'cx-msg-img';
+                        img.addEventListener('click', (function(s){ return function(){ openLightbox(s); }; })(m.attachedFilePath));
+                        bubble.appendChild(img);
+                    } else {
+                        var a = document.createElement('a');
+                        a.href = m.attachedFilePath; a.target = '_blank'; a.className = 'cx-file-link';
+                        a.innerHTML = fileIcon(m.fileType) + '<span>' + (m.attachedFileName||'') + '</span>';
+                        bubble.appendChild(a);
+                    }
+                }
+                var tm = document.createElement('div');
+                tm.className = 'cx-msg-time';
+                tm.textContent = m.sentAtDisplay;
+                wrap.appendChild(bubble);
+                wrap.appendChild(tm);
+                row.appendChild(av);
+                row.appendChild(wrap);
+                container.appendChild(row);
+            }
+
+            function fileIcon(type){
+                var map = {pdf:'<i class="fas fa-file-pdf"></i>',word:'<i class="fas fa-file-word"></i>',excel:'<i class="fas fa-file-excel"></i>',ppt:'<i class="fas fa-file-powerpoint"></i>',powerbi:'<i class="fas fa-chart-bar"></i>',zip:'<i class="fas fa-file-archive"></i>'};
+                return map[type] || '<i class="fas fa-file"></i>';
+            }
+            function scrollToBottom(){ var el=document.getElementById('chatMessages'); el.scrollTop=el.scrollHeight; }
+
+            // ── Toast notification ──
+            function showChatToast(msg, type){
+                var old = document.querySelector('.cx-toast');
+                if (old) old.remove();
+                var t = document.createElement('div');
+                t.className = 'cx-toast ' + (type || 'warn');
+                t.textContent = msg;
+                document.body.appendChild(t);
+                setTimeout(function(){
+                    t.style.opacity = '0';
+                    setTimeout(function(){ if(t.parentNode) t.remove(); }, 400);
+                }, 3000);
+            }
+
+            // ── Send button cooldown visual ──
+            function startSendCooldown(){
+                var btn = document.getElementById('chatSendBtn');
+                var remaining = 5;
+                btn.disabled = true;
+                btn.title = 'Wait ' + remaining + 's';
+                if (cooldownTimer) clearInterval(cooldownTimer);
+                cooldownTimer = setInterval(function(){
+                    remaining--;
+                    if (remaining <= 0){
+                        clearInterval(cooldownTimer);
+                        cooldownTimer = null;
+                        btn.disabled = false;
+                        btn.title = '';
+                    } else {
+                        btn.title = 'Wait ' + remaining + 's';
+                    }
+                }, 1000);
+            }
+
+            var lastSentAt = 0;
+            var cooldownTimer = null;
+
+            window.sendMessage = function(){
+                var inp = document.getElementById('chatMsgInput');
+                var body = inp.value.trim();
+                if (!body && !selectedFile) return;
+                if (body.length > 500) { showChatToast('You have exceeded the maximum chat length.', 'error'); return; }
+                if (!activeConvId) return;
+
+                // 5-second cooldown between messages
+                var now = Date.now();
+                var elapsed = now - lastSentAt;
+                if (lastSentAt > 0 && elapsed < 5000) {
+                    var remaining = Math.ceil((5000 - elapsed) / 1000);
+                    showChatToast('Please wait ' + remaining + ' second' + (remaining !== 1 ? 's' : '') + ' before sending again.', 'warn');
+                    return;
+                }
+
+                var btn = document.getElementById('chatSendBtn');
+                btn.disabled = true;
+                var fd = new FormData();
+                fd.append('conversationId', activeConvId);
+                fd.append('body', body);
+                fd.append('__RequestVerificationToken', CSRF);
+                if (selectedFile) fd.append('file', selectedFile);
+                fetch(sendUrl, {method:'POST', credentials:'same-origin', body:fd})
+                    .then(function(r){ return r.json(); })
+                    .then(function(msg){
+                        inp.value = ''; inp.style.height = '';
+                        document.getElementById('charCount').textContent = '500';
+                        document.getElementById('charCount').className = 'cx-char-count';
+                        clearFile();
+                        appendMessage(msg);
+                        lastMsgId = msg.messageId;
+                        lastSentAt = Date.now();
+                        scrollToBottom();
+                        updateConvListItem(activeConvId, msg);
+                        // Start 5s cooldown — keeps button disabled until countdown finishes
+                        startSendCooldown();
+                    })
+                    .catch(function(e){
+                        console.error(e);
+                        // Only re-enable on error (no cooldown needed if send failed)
+                        btn.disabled = false;
+                    });
+            };
+
+            window.autoGrow = function(el){ el.style.height=''; el.style.height=Math.min(el.scrollHeight,120)+'px'; };
+            window.updateCharCount = function(el){
+                var rem = 500 - el.value.length;
+                var span = document.getElementById('charCount');
+                if (!span) return;
+                if (rem <= 0) {
+                    span.textContent = 'Max length reached';
+                    span.className = 'cx-char-count limit';
+                    showChatToast('You have exceeded the maximum chat length.', 'error');
+                } else {
+                    span.textContent = rem;
+                    span.className = 'cx-char-count' + (rem<=50?' warn':'');
+                }
+            };
+
+            window.onFileSelected = function(input){
+                if (!input.files[0]) return;
+                selectedFile = input.files[0];
+                var ext = selectedFile.name.split('.').pop().toLowerCase();
+                document.getElementById('chatFileChipIcon').className = ['png','jpg','jpeg'].indexOf(ext)>=0?'fas fa-image':'fas fa-paperclip';
+                document.getElementById('chatFileChipName').textContent = selectedFile.name;
+                document.getElementById('chatFilePreview').style.display = '';
+            };
+            window.clearFile = function(){
+                selectedFile = null;
+                document.getElementById('chatFileInput').value = '';
+                document.getElementById('chatFilePreview').style.display = 'none';
+            };
+
+            // ── Remove message from DOM (idempotent) ──
+            function removeMessageFromDOM(msgId){
+                var row = document.querySelector('[data-msg-id="' + msgId + '"]');
+                if (!row) return;
+                row.remove();
+                var container = document.getElementById('chatMessages');
+                // Clean orphaned date dividers
+                container.querySelectorAll('.cx-date-div').forEach(function(div){
+                    var sib = div.nextElementSibling;
+                    while (sib && sib.classList.contains('cx-date-div')) sib = sib.nextElementSibling;
+                    if (!sib || !sib.classList.contains('cx-msg-row')) div.remove();
+                });
+                // Show placeholder only if no messages remain
+                if (container.querySelectorAll('.cx-msg-row').length === 0) {
+                    container.innerHTML = '';
+                    var ph = document.createElement('div');
+                    ph.dataset.placeholder = '1';
+                    ph.style.cssText = 'text-align:center;color:#94a3b8;font-size:.81rem;padding:32px;';
+                    ph.textContent = 'No messages yet. Say hello!';
+                    container.appendChild(ph);
+                }
+            }
+
+            // ── Refresh conv list preview to show the actual last message ──
+            function refreshConvPreview(convId){
+                var item = document.querySelector('[data-conv-id="' + convId + '"]');
+                if (!item) return;
+                var prev = item.querySelector('.cx-conv-prev');
+                var ts   = item.querySelector('.cx-conv-ts');
+                if (!prev) return;
+                var rows = document.getElementById('chatMessages').querySelectorAll('.cx-msg-row');
+                if (rows.length === 0) {
+                    prev.textContent = 'No messages yet';
+                    if (ts) ts.textContent = '';
+                    return;
+                }
+                var lastRow   = rows[rows.length - 1];
+                var bubbleTxt = lastRow.querySelector('.cx-bubble span');
+                var fileChip  = lastRow.querySelector('.cx-file-link span');
+                var timeEl    = lastRow.querySelector('.cx-msg-time');
+                var isMineRow = lastRow.classList.contains('mine');
+                var txt = bubbleTxt ? bubbleTxt.textContent : (fileChip ? 'Attachment: ' + fileChip.textContent : '');
+                var preview = (isMineRow ? 'You: ' : '') + txt;
+                if (preview.length > 38) preview = preview.substring(0, 38) + '...';
+                prev.textContent = preview;
+                if (ts && timeEl) ts.textContent = timeEl.textContent;
+            }
+
+            window.openDeleteModal = function(msgId){ pendingDelete=msgId; document.getElementById('deleteModal').style.display='flex'; };
+            window.closeDeleteModal = function(){ pendingDelete=0; document.getElementById('deleteModal').style.display='none'; };
+            window.confirmDelete = function(){
+                if (!pendingDelete) return;
+                var btn = document.getElementById('deleteConfirmBtn');
+                btn.disabled=true; btn.textContent='Deleting...';
+                var fd = new FormData();
+                fd.append('messageId', pendingDelete);
+                fd.append('__RequestVerificationToken', CSRF);
+                fetch(deleteUrl, {method:'POST', credentials:'same-origin', body:fd})
+                    .then(function(r){ return r.json(); })
+                    .then(function(d){
+                        if (d.success) {
+                            // Remove immediately from sender's DOM
+                            removeMessageFromDOM(pendingDelete);
+                            // Update the left panel preview to show new last message
+                            refreshConvPreview(activeConvId);
+                        }
+                        closeDeleteModal();
+                    })
+                    .catch(function(){ closeDeleteModal(); })
+                    .finally(function(){ btn.disabled=false; btn.textContent='Delete'; });
+            };
+            document.getElementById('deleteModal').addEventListener('click', function(e){ if(e.target===this) closeDeleteModal(); });
+
+            function markRead(convId){
+                var fd = new FormData();
+                fd.append('conversationId', convId);
+                fd.append('__RequestVerificationToken', CSRF);
+                fetch(markReadUrl, {method:'POST', credentials:'same-origin', body:fd})
+                    .then(function(r){ return r.json(); })
+                    .then(function(d){
+                        var item = document.querySelector('[data-conv-id="' + convId + '"]');
+                        if (item) { var b=item.querySelector('.cx-unread-dot'); if(b)b.remove(); item.classList.remove('unread'); }
+                        updateChatBadge(d.remaining);
+                    }).catch(function(){});
+            }
+
+            function updateChatBadge(n){
+                if (n===undefined){
+                    fetch('@Url.Action("GetUnreadCount", "Chat")?_='+Date.now(),{credentials:'same-origin',cache:'no-store'})
+                        .then(function(r){return r.json();}).then(function(d){setBadge(d.count);}).catch(function(){});
+                } else { setBadge(n); }
+            }
+            function setBadge(n){ var b=document.getElementById('chatBadgeSidebar'); if(!b)return; if(n>0){b.textContent=n;b.style.display='';}else{b.style.display='none';} }
+
+            function updateConvListItem(convId, msg){
+                var item=document.querySelector('[data-conv-id="'+convId+'"]');
+                if(!item)return;
+                var prev=item.querySelector('.cx-conv-prev');
+                var ts  =item.querySelector('.cx-conv-ts');
+                if(prev){
+                    // Build preview text from the sender's POV
+                    var bodyText = msg.body || (msg.attachedFileName ? 'Attachment: '+msg.attachedFileName : '');
+                    var previewText = (msg.senderId === ME ? 'You: ' : '') + bodyText;
+                    if(previewText.length > 38) previewText = previewText.substring(0,38)+'...';
+                    prev.textContent = previewText;
+                }
+                if(ts) ts.textContent = msg.sentAtDisplay;
+                var list=document.getElementById('chatConvList');
+                list.insertBefore(item, list.firstChild);
+            }
+
+            document.getElementById('chatSearch').addEventListener('input', function(){
+                var q=this.value.toLowerCase();
+                document.querySelectorAll('.cx-conv-item').forEach(function(i){
+                    i.style.display=(i.dataset.otherName||'').toLowerCase().indexOf(q)>=0?'':'none';
+                });
+            });
+
+            document.getElementById('newChatBtn').addEventListener('click', function(){
+                document.getElementById('newChatModal').style.display='flex';
+                ['pickRole','pickBranch','pickDept','pickSearch'].forEach(function(id){ document.getElementById(id).value=''; });
+                allPeople=[]; loadPeople();
+            });
+            window.closeNewChatModal = function(){ document.getElementById('newChatModal').style.display='none'; };
+            document.getElementById('newChatModal').addEventListener('click', function(e){ if(e.target===this) closeNewChatModal(); });
+
+            var pAbort=null, pTimer=null;
+            window.loadPeople = function(){
+                clearTimeout(pTimer);
+                pTimer=setTimeout(function(){
+                    if(pAbort)pAbort.abort();
+                    pAbort=new AbortController();
+                    var role=document.getElementById('pickRole').value;
+                    var branch=document.getElementById('pickBranch').value;
+                    var dept=document.getElementById('pickDept').value;
+                    document.getElementById('chatPeopleList').innerHTML='<div class="cx-loading"><div class="cx-spinner"></div></div>';
+                    fetch(getUsersUrl+'?role='+encodeURIComponent(role)+'&branch='+encodeURIComponent(branch)+'&department='+encodeURIComponent(dept)+'&_='+Date.now(),
+                          {credentials:'same-origin',cache:'no-store',signal:pAbort.signal})
+                        .then(function(r){return r.json();})
+                        .then(function(u){allPeople=u;renderPeople(u);})
+                        .catch(function(e){ if(e.name!=='AbortError') document.getElementById('chatPeopleList').innerHTML='<div class="cx-people-empty">Failed to load. Try again.</div>'; });
+                },300);
+            };
+            window.filterPeople = function(){
+                var q=document.getElementById('pickSearch').value.toLowerCase();
+                if(!allPeople.length){loadPeople();return;}
+                renderPeople(q?allPeople.filter(function(p){return p.fullName.toLowerCase().indexOf(q)>=0;}):allPeople);
+            };
+            function renderPeople(users){
+                var list=document.getElementById('chatPeopleList');
+                if(!users.length){list.innerHTML='<div class="cx-people-empty">No users found</div>';return;}
+                list.innerHTML=users.map(function(u){
+                    var ini=u.fullName.split(' ').map(function(p){return p[0];}).join('').substring(0,2).toUpperCase();
+                    var av=u.pic?'<img src="/uploads/profiles/'+u.pic+'" alt="">':'<span>'+ini+'</span>';
+                    var meta=[u.role,u.department,u.branch].filter(Boolean).join(' · ');
+                    return '<div class="cx-person" onclick="selectPerson('+u.userId+',\''+u.fullName.replace(/'/g,"\\'")+'\')"><div class="cx-person-av">'+av+'</div><div class="cx-person-info"><div class="cx-person-name">'+u.fullName+'</div><div class="cx-person-meta">'+meta+'</div></div><span class="cx-role-badge rb-'+u.role.toLowerCase()+'">'+u.role+'</span></div>';
+                }).join('');
+            }
+
+            window.selectPerson = function(targetId, targetName){
+                closeNewChatModal();
+                var ex=document.querySelector('[data-other-id="'+targetId+'"]');
+                if(ex){openConv(parseInt(ex.dataset.convId),ex);return;}
+                document.getElementById('chatEmptyState').style.display='none';
+                document.getElementById('chatActive').style.display='';
+                document.getElementById('chatMessages').innerHTML='<div class="cx-loading"><div class="cx-spinner"></div></div>';
+                document.getElementById('chatHdrName').textContent=targetName;
+                document.getElementById('chatHdrMeta').textContent='';
+                document.getElementById('chatHdrAvatar').innerHTML='<span>'+targetName.split(' ').map(function(p){return p[0];}).join('').substring(0,2).toUpperCase()+'</span>';
+                var fd=new FormData();
+                fd.append('targetUserId',targetId);
+                fd.append('__RequestVerificationToken',CSRF);
+                fetch(getOrCreate,{method:'POST',credentials:'same-origin',body:fd})
+                    .then(function(r){return r.json();})
+                    .then(function(d){
+                        activeConvId=d.conversationId; lastMsgId=0; lastDateLabel='';
+                        clearInterval(pollTimer);
+                        joinConvGroup(d.conversationId);
+                        fetchMessages(true);
+                        if(!connection||connection.state!==signalR.HubConnectionState.Connected)
+                            pollTimer=setInterval(function(){fetchMessages(false);},3000);
+                        addConvToList(d.conversationId,targetId,targetName);
+                    }).catch(function(e){console.error(e);});
+            };
+
+            function addConvToList(convId,otherId,name){
+                var list=document.getElementById('chatConvList');
+                var empty=list.querySelector('.cx-conv-empty'); if(empty)empty.remove();
+                if(list.querySelector('[data-conv-id="'+convId+'"]'))return;
+                var ini=name.split(' ').map(function(p){return p[0];}).join('').substring(0,2).toUpperCase();
+                var div=document.createElement('div');
+                div.className='cx-conv-item active';
+                div.dataset.convId=convId; div.dataset.otherId=otherId;
+                div.dataset.otherName=name; div.dataset.otherRole='';
+                div.dataset.otherDept=''; div.dataset.otherBranch=''; div.dataset.otherPic='';
+                div.setAttribute('onclick','openConv('+convId+',this)');
+                div.innerHTML='<div class="cx-conv-av"><span>'+ini+'</span><span class="cx-role-pip"></span></div><div class="cx-conv-info"><div class="cx-conv-row1"><span class="cx-conv-name">'+name+'</span></div><div class="cx-conv-row2"><span class="cx-conv-prev">New conversation</span></div></div>';
+                document.querySelectorAll('.cx-conv-item').forEach(function(i){i.classList.remove('active');});
+                list.insertBefore(div,list.firstChild);
+                div.classList.add('active');
+            }
+
+            window.openLightbox = function(src){
+                var lb=document.createElement('div'); lb.className='cx-lightbox';
+                lb.innerHTML='<img src="'+src+'">';
+                lb.addEventListener('click',function(){document.body.removeChild(lb);});
+                document.body.appendChild(lb);
+            };
+
+            window.showLeftOnMobile = function(){
+                document.getElementById('chatLeft').classList.remove('hidden');
+                clearInterval(pollTimer); pollTimer=null;
+                leaveConvGroup(activeConvId); activeConvId=0;
+            };
+        })();
+    </script>
+}

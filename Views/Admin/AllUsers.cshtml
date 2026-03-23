@@ -1,0 +1,181 @@
+﻿@model List<User>
+@{
+    ViewData["Title"] = "All Users";
+    var departments = new[] { "IT","HR","GLL","SSDG","Accounting","Treasury","TMG",
+                               "Legal Service","Production","Electrical Engineer",
+                               "Mechanical Engineer","Agronomy" };
+    string fDept = ViewBag.Department as string ?? "";
+    string fRole = ViewBag.Role as string ?? "";
+    string fStatus = ViewBag.Status as string ?? "";
+    string fBranch = ViewBag.Branch as string ?? "";
+    string[] allBranches = new[] { "Agoo", "Reina Mercedes", "Candon", "Pasig" };
+}
+
+<div class="dashboard">
+    <div class="section-card">
+        <div class="section-header">
+            <h3><i class="fas fa-users"></i> All Registered Users</h3>
+            <div style="display:flex;gap:8px;">
+                <a asp-action="RegisterUser" class="btn btn-primary-sm">
+                    <i class="fas fa-user-plus"></i> Register User
+                </a>
+                <a asp-action="Index" class="btn btn-outline-sm">
+                    <i class="fas fa-arrow-left"></i> Dashboard
+                </a>
+            </div>
+        </div>
+        <div class="section-body">
+
+            <!-- Filters -->
+            <form method="get" asp-action="AllUsers" class="filter-bar">
+
+                <select name="department" class="form-control sm" onchange="this.form.submit()">
+                    <option value="">All Departments</option>
+                    @foreach (var d in departments)
+                    {
+                        if (fDept == d)
+                        {
+                            <option value="@d" selected="selected">@d</option>
+                        }
+                        else
+                        {
+                            <option value="@d">@d</option>
+                        }
+                    }
+                </select>
+
+                <select name="role" class="form-control sm" onchange="this.form.submit()">
+                    <option value="">All Roles</option>
+                    @if (fRole == "OJT")
+                    {
+                        <option value="OJT" selected="selected">OJT</option>
+                    }
+                    else
+                    {
+                        <option value="OJT">OJT</option>
+                    }
+                    @if (fRole == "Employee")
+                    {
+                        <option value="Employee" selected="selected">Employee</option>
+                    }
+                    else
+                    {
+                        <option value="Employee">Employee</option>
+                    }
+                </select>
+
+                <select name="status" class="form-control sm" onchange="this.form.submit()">
+                    <option value="">All Status</option>
+                    @if (fStatus == "Active")
+                    {
+                        <option value="Active" selected="selected">Active</option>
+                    }
+                    else
+                    {
+                        <option value="Active">Active</option>
+                    }
+                    @if (fStatus == "Inactive")
+                    {
+                        <option value="Inactive" selected="selected">Inactive</option>
+                    }
+                    else
+                    {
+                        <option value="Inactive">Inactive</option>
+                    }
+                </select>
+
+                <select name="branch" class="form-control sm" onchange="this.form.submit()">
+                    <option value="">All Branches</option>
+                    @foreach (var b in allBranches)
+                    {
+                        if (fBranch == b)
+                        {
+                            <option value="@b" selected="selected">@b</option>
+                        }
+                        else
+                        {
+                            <option value="@b">@b</option>
+                        }
+                    }
+                </select>
+
+            </form>
+
+            <div class="table-responsive">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Username</th>
+                            <th>Role</th>
+                            <th>Department</th>
+                            <th>Branch</th>
+                            <th>Email</th>
+                            <th>Status</th>
+                            <th>Registered</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var u in Model)
+                        {
+                            <tr>
+                                <td>@u.FullName</td>
+                                <td>@u.Username</td>
+                                <td><span class="status-badge role-@u.Role.ToLower()">@u.Role</span></td>
+                                <td>@u.Department</td>
+                                <td>
+                                    <span class="branch-badge">
+                                        <i class="fas fa-map-marker-alt"></i> @u.Branch
+                                    </span>
+                                </td>
+                                <td>@u.Email</td>
+                                <td>
+                                    @if (u.Status == "Active")
+                                    {
+                                        <span class="status-badge status-active">Active</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="status-badge status-inactive">Inactive</span>
+                                    }
+                                </td>
+                                <td>@u.CreatedAt.ToString("MMM dd, yyyy")</td>
+                                <td>
+                                    <div class="action-buttons">
+                                        <a asp-action="EditUser" asp-route-id="@u.UserId"
+                                           class="btn btn-edit-sm">
+                                            <i class="fas fa-pen"></i> Edit
+                                        </a>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+@section Styles {
+    <style>
+        .branch-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: .78rem;
+            font-weight: 600;
+            color: #0369a1;
+            background: #e0f2fe;
+            padding: 2px 8px;
+            border-radius: 20px;
+            white-space: nowrap;
+        }
+
+            .branch-badge i {
+                font-size: .65rem;
+            }
+    </style>
+}

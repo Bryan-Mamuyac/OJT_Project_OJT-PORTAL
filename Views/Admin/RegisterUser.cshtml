@@ -1,0 +1,404 @@
+﻿@model AdminRegisterViewModel
+@{
+    ViewData["Title"] = "Register User";
+    var departments = ViewBag.Departments as string[] ?? Array.Empty<string>();
+    var branches = ViewBag.Branches as string[] ?? Array.Empty<string>();
+    string[] allBranches = new[] { "Agoo", "Reina Mercedes", "Candon", "Pasig" };
+}
+
+<div class="form-page">
+    <div class="form-card">
+        <div class="form-card-header">
+            <h3><i class="fas fa-user-plus"></i> Register New User</h3>
+            <p>Create an account for an OJT trainee or Employee. A default password will be assigned.</p>
+        </div>
+
+        @if (TempData["SuccessMessage"] != null)
+        {
+            <div class="alert alert-success" style="margin:16px 24px 0;">
+                <i class="fas fa-check-circle"></i> @Html.Raw(TempData["SuccessMessage"]?.ToString())
+            </div>
+        }
+
+        <form asp-action="RegisterUser" method="post">
+            @Html.AntiForgeryToken()
+            <div asp-validation-summary="ModelOnly" class="alert alert-danger" style="margin:16px 24px 0;"></div>
+
+            <!-- ROLE -->
+            <div class="ct-section">
+                <span class="ct-label"><i class="fas fa-layer-group"></i> Role <span class="required-star">*</span></span>
+                <div class="task-type-grid">
+                    <div class="type-card active" id="cardOJT" onclick="selectRole('OJT')">
+                        <input type="radio" name="Role" value="OJT" id="radioOJT" checked />
+                        <div class="tc-left">
+                            <div class="tc-icon-wrap"><i class="fas fa-user-graduate tc-icon"></i></div>
+                            <div class="tc-text">
+                                <strong>OJT Trainee</strong>
+                                <small>On-the-job training student</small>
+                            </div>
+                        </div>
+                        <i class="fas fa-check-circle tc-check"></i>
+                    </div>
+                    <div class="type-card" id="cardEmployee" onclick="selectRole('Employee')">
+                        <input type="radio" name="Role" value="Employee" id="radioEmployee" />
+                        <div class="tc-left">
+                            <div class="tc-icon-wrap"><i class="fas fa-briefcase tc-icon"></i></div>
+                            <div class="tc-text">
+                                <strong>Employee</strong>
+                                <small>Department staff member</small>
+                            </div>
+                        </div>
+                        <i class="fas fa-check-circle tc-check"></i>
+                    </div>
+                </div>
+                <span asp-validation-for="Role" class="field-error"></span>
+            </div>
+
+            <!-- DEPARTMENT -->
+            <div class="ct-section">
+                <label class="ct-label" asp-for="Department">
+                    <i class="fas fa-building"></i> Department <span class="required-star">*</span>
+                </label>
+                <select asp-for="Department" class="form-control">
+                    <option value="">-- Select Department --</option>
+                    @foreach (var d in departments)
+                    {
+                        <option value="@d">@d</option>
+                    }
+                </select>
+                <span asp-validation-for="Department" class="field-error"></span>
+            </div>
+
+            <!-- BRANCH -->
+            <div class="ct-section">
+                <label class="ct-label" asp-for="Branch">
+                    <i class="fas fa-map-marker-alt"></i> Branch <span class="required-star">*</span>
+                </label>
+                <select asp-for="Branch" class="form-control">
+                    <option value="">Select Branch</option>
+                    @foreach (var b in allBranches)
+                    {
+                        <option value="@b">@b</option>
+                    }
+                </select>
+                <span asp-validation-for="Branch" class="field-error"></span>
+            </div>
+
+            <!-- NAME ROW -->
+            <div class="ct-section">
+                <div class="name-row">
+                    <div class="name-col">
+                        <label class="ct-label" asp-for="FirstName">
+                            <i class="fas fa-user"></i> First Name <span class="required-star">*</span>
+                        </label>
+                        <input asp-for="FirstName" class="form-control" placeholder="e.g. Bryan"
+                               oninput="generateUsername()" />
+                        <span asp-validation-for="FirstName" class="field-error"></span>
+                    </div>
+                    <div class="name-col">
+                        <label class="ct-label" asp-for="LastName">
+                            <i class="fas fa-user"></i> Last Name <span class="required-star">*</span>
+                        </label>
+                        <input asp-for="LastName" class="form-control" placeholder="e.g. Mamuyac"
+                               oninput="generateUsername()" />
+                        <span asp-validation-for="LastName" class="field-error"></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- AUTO-GENERATED USERNAME -->
+            <div class="ct-section">
+                <label class="ct-label">
+                    <i class="fas fa-at"></i> Username <span class="auto-badge">Auto-generated</span>
+                </label>
+                <div class="username-preview" id="usernamePreview">
+                    <i class="fas fa-lock" style="color:#94a3b8;font-size:.85rem;"></i>
+                    <span id="usernameText" style="color:#94a3b8;">Fill in first and last name above</span>
+                </div>
+                <p class="field-hint">Format: firstname_lastname (e.g. bryan_mamuyac)</p>
+            </div>
+
+            <!-- EMAIL -->
+            <div class="ct-section">
+                <label class="ct-label" asp-for="Email">
+                    <i class="fas fa-envelope"></i> Email <span class="required-star">*</span>
+                </label>
+                <input asp-for="Email" class="form-control" type="email" placeholder="user@example.com" />
+                <span asp-validation-for="Email" class="field-error"></span>
+            </div>
+
+            <!-- DEFAULT PASSWORD INFO -->
+            <div class="ct-section">
+                <span class="ct-label"><i class="fas fa-key"></i> Default Password</span>
+                <div class="default-password-box">
+                    <i class="fas fa-info-circle"></i>
+                    <div>
+                        <strong>password123</strong> will be assigned automatically.
+                        The user will be required to change it upon first login.
+                    </div>
+                </div>
+            </div>
+
+            <!-- ACTIONS -->
+            <div class="ct-actions">
+                <a asp-action="AllUsers" class="btn btn-outline">
+                    <i class="fas fa-arrow-left"></i> Back to Users
+                </a>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-user-plus"></i> Create Account
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Styles {
+    <style>
+        .ct-section {
+            padding: 16px 24px;
+        }
+
+        .ct-label {
+            display: block;
+            font-size: .78rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .6px;
+            color: #475569;
+            margin-bottom: 8px;
+        }
+
+            .ct-label i {
+                margin-right: 5px;
+                color: #2563ab;
+            }
+
+        .ct-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            padding: 16px 24px;
+            border-top: 1px solid #e2e8f0;
+            background: #f8fafc;
+        }
+
+        .required-star {
+            color: #dc2626;
+            font-weight: 700;
+            margin-left: 2px;
+        }
+
+        .auto-badge {
+            background: #dbeafe;
+            color: #1d4ed8;
+            font-size: .68rem;
+            padding: 2px 8px;
+            border-radius: 20px;
+            margin-left: 6px;
+            text-transform: none;
+            letter-spacing: 0;
+            font-weight: 600;
+        }
+
+        .field-hint {
+            font-size: .75rem;
+            color: #94a3b8;
+            margin-top: 5px;
+        }
+
+        /* Name row */
+        .name-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        .name-col {
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Username preview */
+        .username-preview {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: #f8fafc;
+            border: 1.5px dashed #cbd5e1;
+            border-radius: 10px;
+            padding: 12px 16px;
+            font-size: .95rem;
+            font-weight: 600;
+            transition: border-color .2s, background .2s;
+        }
+
+            .username-preview.has-value {
+                background: #eff6ff;
+                border-color: #93c5fd;
+                color: #1d4ed8;
+            }
+
+                .username-preview.has-value i {
+                    color: #2563ab !important;
+                }
+
+        /* Default password box */
+        .default-password-box {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            background: #fef9ec;
+            border: 1px solid #fcd34d;
+            border-radius: 10px;
+            padding: 14px 16px;
+            font-size: .875rem;
+            color: #78350f;
+        }
+
+            .default-password-box i {
+                color: #f59e0b;
+                font-size: 1rem;
+                flex-shrink: 0;
+                margin-top: 1px;
+            }
+
+            .default-password-box strong {
+                font-size: 1rem;
+                letter-spacing: .5px;
+            }
+
+        /* Role cards */
+        .task-type-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .type-card {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 16px;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            cursor: pointer;
+            background: #f8fafc;
+            transition: border-color .2s,background .2s,box-shadow .2s;
+            user-select: none;
+        }
+
+            .type-card:hover {
+                border-color: #93c5fd;
+                background: #f0f7ff;
+            }
+
+            .type-card.active {
+                border-color: #2563ab;
+                background: #eff6ff;
+                box-shadow: 0 0 0 3px rgba(37,99,171,.13);
+            }
+
+            .type-card input[type=radio] {
+                display: none;
+            }
+
+        .tc-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex: 1;
+        }
+
+        .tc-icon-wrap {
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            background: #dbeafe;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            transition: background .2s;
+        }
+
+        .type-card.active .tc-icon-wrap {
+            background: #2563ab;
+        }
+
+        .tc-icon {
+            font-size: 1rem;
+            color: #2563ab;
+            transition: color .2s;
+        }
+
+        .type-card.active .tc-icon {
+            color: #fff;
+        }
+
+        .tc-text {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+            .tc-text strong {
+                font-size: .9rem;
+                color: #0f172a;
+            }
+
+            .tc-text small {
+                font-size: .75rem;
+                color: #64748b;
+            }
+
+        .tc-check {
+            font-size: 1rem;
+            color: #2563ab;
+            opacity: 0;
+            transition: opacity .2s;
+            flex-shrink: 0;
+        }
+
+        .type-card.active .tc-check {
+            opacity: 1;
+        }
+
+        @@media (max-width:560px) {
+            .task-type-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .name-row {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+}
+
+@section Scripts {
+    <script>
+        function generateUsername() {
+            var first = document.getElementById('FirstName')?.value || document.querySelector('[name="FirstName"]')?.value || '';
+            var last  = document.getElementById('LastName')?.value  || document.querySelector('[name="LastName"]')?.value  || '';
+            var preview = document.getElementById('usernamePreview');
+            var text    = document.getElementById('usernameText');
+            if (first.trim() || last.trim()) {
+                var uname = (first.trim().toLowerCase().replace(/\s+/g,'')) + '_' +
+                            (last.trim().toLowerCase().replace(/\s+/g,''));
+                text.textContent = uname;
+                preview.classList.add('has-value');
+            } else {
+                text.textContent = 'Fill in first and last name above';
+                preview.classList.remove('has-value');
+            }
+        }
+
+        function selectRole(role) {
+            document.getElementById('cardOJT').classList.toggle('active', role === 'OJT');
+            document.getElementById('cardEmployee').classList.toggle('active', role === 'Employee');
+            document.getElementById('radioOJT').checked      = (role === 'OJT');
+            document.getElementById('radioEmployee').checked = (role === 'Employee');
+        }
+    </script>
+}

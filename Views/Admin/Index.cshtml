@@ -1,0 +1,625 @@
+﻿@model AdminDashboardViewModel
+@{
+    ViewData["Title"] = "Admin Dashboard";
+    var departments = new[] { "IT","HR","GLL","SSDG","Accounting","Treasury","TMG",
+                               "Legal Service","Production","Electrical Engineer",
+                               "Mechanical Engineer","Agronomy" };
+    string selectedDept = Model.SelectedDepartment ?? "";
+    string selectedBranch = Model.SelectedBranch ?? "";
+}
+
+<div class="dashboard">
+
+    <!-- ── STAT CARDS ── -->
+    <div class="stats-grid">
+        <div class="stat-card stat-blue">
+            <div class="stat-icon"><i class="fas fa-user-graduate"></i></div>
+            <div class="stat-info">
+                <span class="stat-value">@Model.TotalOJTs</span>
+                <span class="stat-label">Active OJT Trainees</span>
+            </div>
+        </div>
+        <div class="stat-card stat-purple">
+            <div class="stat-icon"><i class="fas fa-user-tie"></i></div>
+            <div class="stat-info">
+                <span class="stat-value">@Model.TotalEmployees</span>
+                <span class="stat-label">Active Employees</span>
+            </div>
+        </div>
+        <div class="stat-card stat-teal">
+            <div class="stat-icon"><i class="fas fa-tasks"></i></div>
+            <div class="stat-info">
+                <span class="stat-value">@Model.TotalTasks</span>
+                <span class="stat-label">Total Tasks Issued</span>
+            </div>
+        </div>
+        <div class="stat-card stat-gray">
+            <div class="stat-icon"><i class="fas fa-users-cog"></i></div>
+            <div class="stat-info">
+                <span class="stat-value">@(Model.TotalOJTs + Model.TotalEmployees)</span>
+                <span class="stat-label">Total Active Users</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── RECENT USERS (full width) ── -->
+    <div class="section-card">
+        <div class="section-header">
+            <h3><i class="fas fa-users"></i> Recent Users</h3>
+            <a asp-action="AllUsers" class="btn btn-outline-sm">View All</a>
+        </div>
+        <div class="recent-users-scroll">
+            <table class="ru-table">
+                <thead>
+                    <tr>
+                        <th>User</th>
+                        <th>Role</th>
+                        <th>Department</th>
+                        <th>Branch</th>
+                        <th>Status</th>
+                        <th>Joined</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var u in Model.RecentUsers)
+                    {
+                        <tr>
+                            <td>
+                                <div class="ru-user-cell">
+                                    @if (!string.IsNullOrEmpty(u.ProfilePictureUrl))
+                                    {
+                                        <img src="@u.ProfilePictureUrl" class="ru-avatar-img" alt="@u.FullName" />
+                                    }
+                                    else
+                                    {
+                                        <div class="ru-avatar">@u.FirstName[0]@u.LastName[0]</div>
+                                    }
+                                    <div class="ru-name-block">
+                                        <span class="ru-name">@u.FullName</span>
+                                    </div>
+                                </div>
+                            </td>
+                            <td><span class="status-badge role-@u.Role.ToLower()">@u.Role</span></td>
+                            <td class="ru-dept">@u.Department</td>
+                            <td>
+                                <span class="ru-branch-badge">
+                                    <i class="fas fa-map-marker-alt"></i> @u.Branch
+                                </span>
+                            </td>
+                            <td><span class="status-badge status-@u.Status.ToLower()">@u.Status</span></td>
+                            <td class="ru-date">@u.CreatedAt.ToString("MMM dd, yyyy")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ── DEPARTMENT STATISTICS (full width) ── -->
+    <div class="section-card">
+        <div class="section-header">
+            <div class="dept-header-left">
+                <i class="fas fa-building dept-header-icon"></i>
+                <div>
+                    <h3 style="margin:0;font-size:1rem;font-weight:700;color:#0f172a;">Department Statistics</h3>
+                    <span style="font-size:.75rem;color:#94a3b8;">Active OJTs &amp; Employees per department</span>
+                </div>
+            </div>
+            <form method="get" asp-action="Index" class="dept-filter-row">
+                <div class="dept-filter-group">
+                    <i class="fas fa-map-marker-alt dept-filter-icon"></i>
+                    <select name="branch" class="dept-select" onchange="this.form.submit()">
+                        <option value="">All Branches</option>
+                        @foreach (var b in new[] { "Agoo", "Reina Mercedes", "Candon", "Pasig" })
+                        {
+                            if (selectedBranch == b)
+                            {
+                                <option value="@b" selected>@b</option>
+                            }
+                            else
+                            {
+                                <option value="@b">@b</option>
+                            }
+                        }
+                    </select>
+                </div>
+                <div class="dept-filter-group">
+                    <i class="fas fa-building dept-filter-icon"></i>
+                    <select name="department" class="dept-select" onchange="this.form.submit()">
+                        <option value="">All Departments</option>
+                        @foreach (var d in departments)
+                        {
+                            if (selectedDept == d)
+                            {
+                                <option value="@d" selected>@d</option>
+                            }
+                            else
+                            {
+                                <option value="@d">@d</option>
+                            }
+                        }
+                    </select>
+                </div>
+                @if (!string.IsNullOrEmpty(selectedBranch) || !string.IsNullOrEmpty(selectedDept))
+                {
+                    <a href="/Admin/Index" class="dept-clear-btn" title="Clear filters">
+                        <i class="fas fa-times"></i> Clear
+                    </a>
+                }
+            </form>
+        </div>
+        <div class="section-body">
+            @{
+                var filteredStats = Model.DepartmentStats
+                .Where(d => string.IsNullOrEmpty(selectedDept) || d.Department == selectedDept)
+                .ToList();
+            }
+            @if (!filteredStats.Any())
+            {
+                <div class="dept-empty">
+                    <i class="fas fa-building" style="font-size:2rem;color:#cbd5e1;margin-bottom:8px;"></i>
+                    <p style="color:#94a3b8;margin:0;">No departments found for the selected filters.</p>
+                </div>
+            }
+            else
+            {
+                <div class="dept-stats-grid">
+                    @foreach (var stat in filteredStats)
+                    {
+                        <div class="dept-stat-card">
+                            <div class="dept-card-header">
+                                <div class="dept-icon-wrap"><i class="fas fa-sitemap"></i></div>
+                                <span class="dept-name">@stat.Department</span>
+                            </div>
+                            <div class="dept-card-body">
+                                <div class="dept-pill dept-pill-ojt">
+                                    <i class="fas fa-user-graduate"></i>
+                                    <span class="dept-pill-num">@stat.OJTCount</span>
+                                    <span class="dept-pill-label">OJTs</span>
+                                </div>
+                                <div class="dept-pill dept-pill-emp">
+                                    <i class="fas fa-user-tie"></i>
+                                    <span class="dept-pill-num">@stat.EmployeeCount</span>
+                                    <span class="dept-pill-label">Employees</span>
+                                </div>
+                            </div>
+                            <div class="dept-card-total">
+                                <span>Total</span>
+                                <span class="dept-total-num">@(stat.OJTCount + stat.EmployeeCount)</span>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+
+</div>
+
+@section Styles {
+    <style>
+        /* ── 6 stat cards in one row ── */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+        }
+
+        .stat-card {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            background: #fff;
+            border-radius: 14px;
+            padding: 18px 16px;
+            box-shadow: 0 1px 4px rgba(0,0,0,.06);
+            border: 1px solid #f1f5f9;
+        }
+
+        .stat-icon {
+            width: 46px;
+            height: 46px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.15rem;
+            flex-shrink: 0;
+        }
+
+        .stat-info {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .stat-value {
+            font-size: 1.6rem;
+            font-weight: 800;
+            color: #0f172a;
+            line-height: 1;
+        }
+
+        .stat-label {
+            font-size: .75rem;
+            color: #64748b;
+            margin-top: 3px;
+            font-weight: 500;
+        }
+
+        .stat-blue .stat-icon {
+            background: #dbeafe;
+            color: #2563ab;
+        }
+
+        .stat-purple .stat-icon {
+            background: #f3e8ff;
+            color: #7c3aed;
+        }
+
+        .stat-teal .stat-icon {
+            background: #ccfbf1;
+            color: #0f766e;
+        }
+
+        .stat-green .stat-icon {
+            background: #dcfce7;
+            color: #16a34a;
+        }
+
+        .stat-red .stat-icon {
+            background: #fee2e2;
+            color: #dc2626;
+        }
+
+        .stat-gray .stat-icon {
+            background: #f1f5f9;
+            color: #475569;
+        }
+
+        @@media (max-width:1100px) {
+            .stats-grid {
+                grid-template-columns: repeat(2,1fr);
+            }
+        }
+
+        @@media (max-width:640px) {
+            .stats-grid {
+                grid-template-columns: repeat(2,1fr);
+            }
+        }
+
+        /* ── Department Statistics ── */
+        .dept-header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .dept-header-icon {
+            font-size: 1.1rem;
+            color: #2563ab;
+            background: #dbeafe;
+            padding: 10px;
+            border-radius: 10px;
+        }
+
+        .dept-filter-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .dept-filter-group {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 0 10px;
+        }
+
+        .dept-filter-icon {
+            font-size: .75rem;
+            color: #94a3b8;
+        }
+
+        .dept-select {
+            border: none;
+            background: transparent;
+            font-size: .82rem;
+            color: #374151;
+            padding: 7px 4px;
+            outline: none;
+            cursor: pointer;
+        }
+
+            .dept-select:focus {
+                outline: none;
+            }
+
+        .dept-clear-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            font-size: .78rem;
+            color: #64748b;
+            background: #f1f5f9;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 6px 12px;
+            text-decoration: none;
+            transition: all .15s;
+            white-space: nowrap;
+        }
+
+            .dept-clear-btn:hover {
+                background: #fee2e2;
+                color: #dc2626;
+                border-color: #fecaca;
+            }
+
+        .dept-stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px,1fr));
+            gap: 14px;
+            padding: 4px 2px;
+        }
+
+        .dept-stat-card {
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            border-radius: 14px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            transition: box-shadow .2s,transform .2s;
+        }
+
+            .dept-stat-card:hover {
+                box-shadow: 0 4px 16px rgba(37,99,171,.1);
+                transform: translateY(-2px);
+                border-color: #bfdbfe;
+            }
+
+        .dept-card-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .dept-icon-wrap {
+            width: 34px;
+            height: 34px;
+            border-radius: 9px;
+            background: #eff6ff;
+            color: #2563ab;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: .85rem;
+            flex-shrink: 0;
+        }
+
+        .dept-name {
+            font-size: .82rem;
+            font-weight: 700;
+            color: #0f172a;
+            line-height: 1.3;
+        }
+
+        .dept-card-body {
+            display: flex;
+            gap: 8px;
+        }
+
+        .dept-pill {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            flex: 1;
+            border-radius: 8px;
+            padding: 7px 10px;
+        }
+
+        .dept-pill-ojt {
+            background: #f0fdf4;
+            color: #15803d;
+        }
+
+        .dept-pill-emp {
+            background: #eff6ff;
+            color: #1d4ed8;
+        }
+
+        .dept-pill i {
+            font-size: .72rem;
+            flex-shrink: 0;
+        }
+
+        .dept-pill-num {
+            font-size: 1.05rem;
+            font-weight: 800;
+            line-height: 1;
+        }
+
+        .dept-pill-label {
+            font-size: .68rem;
+            font-weight: 500;
+            opacity: .8;
+            margin-left: 1px;
+        }
+
+        .dept-card-total {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-top: 1px solid #f1f5f9;
+            padding-top: 10px;
+            font-size: .75rem;
+            color: #94a3b8;
+            font-weight: 500;
+        }
+
+        .dept-total-num {
+            font-size: .88rem;
+            font-weight: 700;
+            color: #475569;
+        }
+
+        .dept-empty {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 40px 20px;
+            text-align: center;
+        }
+
+        /* ── Recent Users scrollable table ── */
+        .recent-users-scroll {
+            max-height: 380px;
+            overflow-y: auto;
+            overflow-x: auto;
+            border-radius: 0 0 12px 12px;
+        }
+
+            .recent-users-scroll::-webkit-scrollbar {
+                width: 5px;
+                height: 5px;
+            }
+
+            .recent-users-scroll::-webkit-scrollbar-track {
+                background: #f8fafc;
+            }
+
+            .recent-users-scroll::-webkit-scrollbar-thumb {
+                background: #cbd5e1;
+                border-radius: 10px;
+            }
+
+                .recent-users-scroll::-webkit-scrollbar-thumb:hover {
+                    background: #94a3b8;
+                }
+
+        .ru-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+            .ru-table thead {
+                position: sticky;
+                top: 0;
+                z-index: 2;
+            }
+
+                .ru-table thead tr {
+                    background: #f8fafc;
+                }
+
+            .ru-table th {
+                padding: 10px 14px;
+                font-size: .69rem;
+                font-weight: 700;
+                text-transform: uppercase;
+                letter-spacing: .5px;
+                color: #94a3b8;
+                border-bottom: 2px solid #e2e8f0;
+                white-space: nowrap;
+            }
+
+            .ru-table td {
+                padding: 10px 14px;
+                font-size: .83rem;
+                color: #1e293b;
+                border-bottom: 1px solid #f1f5f9;
+                vertical-align: middle;
+            }
+
+            .ru-table tbody tr:hover {
+                background: #f8fafc;
+            }
+
+            .ru-table tbody tr:last-child td {
+                border-bottom: none;
+            }
+
+        .ru-user-cell {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .ru-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: .8rem;
+            font-weight: 700;
+            color: #fff;
+            background: linear-gradient(135deg,#2563ab,#1e40af);
+        }
+
+        .ru-avatar-img {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            object-fit: cover;
+            flex-shrink: 0;
+            border: 2px solid #e2e8f0;
+        }
+
+        .ru-name-block {
+            display: flex;
+            flex-direction: column;
+            gap: 1px;
+        }
+
+        .ru-name {
+            font-size: .85rem;
+            font-weight: 600;
+            color: #0f172a;
+            white-space: nowrap;
+        }
+
+        .ru-username {
+            font-size: .73rem;
+            color: #94a3b8;
+        }
+
+        .ru-dept {
+            font-size: .8rem;
+            color: #475569;
+            white-space: nowrap;
+        }
+
+        .ru-date {
+            font-size: .78rem;
+            color: #94a3b8;
+            white-space: nowrap;
+        }
+
+        .ru-branch-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: .73rem;
+            font-weight: 600;
+            color: #0369a1;
+            background: #e0f2fe;
+            padding: 2px 8px;
+            border-radius: 20px;
+            white-space: nowrap;
+        }
+
+            .ru-branch-badge i {
+                font-size: .6rem;
+            }
+    </style>
+}

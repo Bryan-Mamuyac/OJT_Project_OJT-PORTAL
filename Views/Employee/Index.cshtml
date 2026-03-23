@@ -1,0 +1,932 @@
+﻿@model EmployeeDashboardViewModel
+@using System.Text.Json
+@{
+    ViewData["Title"] = "Employee Dashboard";
+    var branches = new[] { "Agoo", "Reina Mercedes", "Candon", "Pasig" };
+    string empBranch = (ViewBag.EmpBranch as string ?? "Agoo").Trim();
+
+    // Build branch->OJT map as JSON for client-side filtering
+    var branchMap = new System.Collections.Generic.Dictionary<string, object>();
+    foreach (var b in branches)
+    {
+        var list = Model.MyOJTs
+            .Where(o => o.Branch.Trim() == b.Trim())
+            .Select(o => new
+            {
+                name = o.FullName,
+                initials = "" + o.FirstName[0] + o.LastName[0],
+                pic = o.ProfilePictureUrl ?? "",
+                branch = o.Branch.Trim()
+            })
+            .ToList<object>();
+        branchMap[b] = list;
+    }
+    string ojtBranchJson = JsonSerializer.Serialize(branchMap);
+
+    <script>
+        function openCancelModal(taskId, taskTitle) {
+            document.getElementById('cancelTaskId').value  = taskId;
+            document.getElementById('cancelTaskName').textContent = '"' + taskTitle + '"';
+            var overlay = document.getElementById('cancelOverlay');
+            overlay.style.display = 'flex';
+            document.body.style.overflow = 'hidden';
+        }
+        function closeCancelModal() {
+            document.getElementById('cancelOverlay').style.display = 'none';
+            document.body.style.overflow = '';
+        }
+        function confirmCancel() {
+            document.getElementById('cancelTaskForm').submit();
+        }
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') closeCancelModal();
+        });
+    </script>
+}
+
+<div class="dashboard">
+
+    <!-- STAT CARDS -->
+    <div class="stats-grid">
+        <div class="stat-card stat-blue">
+            <div class="stat-icon"><i class="fas fa-clipboard-list"></i></div>
+            <div class="stat-info">
+                <span class="stat-value">@Model.TotalTasks</span>
+                <span class="stat-label">Total Tasks Given</span>
+            </div>
+        </div>
+        <div class="stat-card stat-yellow">
+            <div class="stat-icon"><i class="fas fa-clock"></i></div>
+            <div class="stat-info">
+                <span class="stat-value">@Model.PendingTasks</span>
+                <span class="stat-label">Pending Tasks</span>
+            </div>
+        </div>
+        <div class="stat-card stat-green">
+            <div class="stat-icon"><i class="fas fa-check-circle"></i></div>
+            <div class="stat-info">
+                <span class="stat-value">@Model.CompletedTasks</span>
+                <span class="stat-label">Completed Tasks</span>
+            </div>
+        </div>
+        <div class="stat-card stat-red">
+            <div class="stat-icon"><i class="fas fa-ban"></i></div>
+            <div class="stat-info">
+                <span class="stat-value">@Model.CancelledTasks</span>
+                <span class="stat-label">Cancelled Tasks</span>
+            </div>
+        </div>
+        <div class="stat-card stat-purple" title="Active OJT trainees in your department &amp; branch">
+            <div class="stat-icon"><i class="fas fa-user-graduate"></i></div>
+            <div class="stat-info">
+                <span class="stat-value">@Model.MyOJTs.Count</span>
+                <span class="stat-label">Active OJT Trainees</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ANALYTICS CHART -->
+    <div class="section-card analytics-card">
+        <div class="section-header analytics-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+            <div class="analytics-title">
+                <div class="analytics-title-icon"><i class="fas fa-chart-line"></i></div>
+                <div>
+                    <h3>OJT Performance Analytics</h3>
+                    <span class="analytics-subtitle" id="chartSubtitle">Tasks given vs completed over time</span>
+                </div>
+            </div>
+            <div class="analytics-controls" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-left:auto;">
+                <div class="analytics-mini-stats">
+                    <div class="mini-stat">
+                        <span class="mini-stat-dot dot-total"></span>
+                        <span class="mini-stat-label">Tasks Given</span>
+                        <span class="mini-stat-val" id="chartTotalVal">0</span>
+                    </div>
+                    <div class="mini-stat">
+                        <span class="mini-stat-dot dot-completed"></span>
+                        <span class="mini-stat-label">Completed</span>
+                        <span class="mini-stat-val" id="chartCompletedVal">0</span>
+                    </div>
+                </div>
+
+                <!-- Branch dropdown -->
+                <div class="emp-chart-filter-group">
+                    <label class="filter-label"><i class="fas fa-map-marker-alt"></i></label>
+                    <select class="analytics-range-select" id="branchSelect">
+                        <option value="">All Branches</option>
+                        <option value="Agoo">Agoo</option>
+                        <option value="Reina Mercedes">Reina Mercedes</option>
+                        <option value="Candon">Candon</option>
+                        <option value="Pasig">Pasig</option>
+                    </select>
+                </div>
+
+                <!-- OJT dropdown -->
+                <div class="emp-chart-filter-group">
+                    <label class="filter-label"><i class="fas fa-user-graduate"></i></label>
+                    <select class="analytics-range-select" id="ojtSelect">
+                        <option value="0">All OJTs</option>
+                    </select>
+                </div>
+
+                <!-- Range dropdown -->
+                <div class="emp-chart-filter-group">
+                    <label class="filter-label"><i class="fas fa-calendar-alt"></i></label>
+                    <select class="analytics-range-select" id="rangeSelect">
+                        <option value="overall" selected>Overall</option>
+                        <option value="7">Last 1 Week</option>
+                        <option value="14">Last 2 Weeks</option>
+                        <option value="30">Last 1 Month</option>
+                        <option value="60">Last 2 Months</option>
+                        <option value="90">Last 3 Months</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        <div class="analytics-body">
+            <div class="chart-loading" id="chartLoading">
+                <div class="chart-spinner"></div>
+                <span>Loading chart data...</span>
+            </div>
+            <div class="chart-wrap" id="chartWrap" style="display:none;">
+                <canvas id="taskChart"></canvas>
+            </div>
+            <div class="chart-empty" id="chartEmpty" style="display:none;">
+                <i class="fas fa-chart-line"></i>
+                <p>No task data available for this selection.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- TASK TABLE -->
+    <div class="section-card span-2">
+        <div class="section-header">
+            <h3><i class="fas fa-tasks"></i> Task Assigned</h3>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                <a asp-action="TasksGiven" class="btn btn-outline-sm"><i class="fas fa-list"></i> View All</a>
+                <a asp-action="CreateTask" class="btn btn-primary-sm"><i class="fas fa-plus"></i> New Task</a>
+            </div>
+        </div>
+        <div class="section-body">
+            @if (!Model.Tasks.Any())
+            {
+                <div class="empty-state">
+                    <i class="fas fa-clipboard"></i>
+                    <p>No tasks created yet.</p>
+                    <a asp-action="CreateTask" class="btn btn-primary-sm" style="margin-top:10px">Create your first task</a>
+                </div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="data-table emp-task-table">
+                        <thead>
+                            <tr>
+                                <th>Title</th>
+                                <th>Type</th>
+                                <th>Assigned To</th>
+                                <th>Deadline</th>
+                                <th>Status</th>
+                                <th>Work Status</th>
+                                <th>Created</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var t in Model.Tasks)
+                            {
+                                <tr>
+                                    <td class="col-title">
+                                        <strong>@t.Title</strong>
+                                        <div class="sub">@(t.Description.Length > 50 ? t.Description[..50] + "…" : t.Description)</div>
+                                    </td>
+                                    <td class="col-type">
+                                        @if (t.TaskType == "Group")
+                                        {
+                                            <span class="status-badge" style="background:#f3e8ff;color:#7c3aed;"><i class="fas fa-users"></i> Group</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="status-badge" style="background:#dbeafe;color:#1d4ed8;"><i class="fas fa-user"></i> Individual</span>
+                                        }
+                                    </td>
+                                    <td class="col-assigned">@t.AssignedToName</td>
+                                    <td class="col-deadline">
+                                        @if (t.Deadline.HasValue)
+                                        {
+                                            string cls = t.IsOverdue ? "text-danger-sm" : t.IsNearDeadline ? "text-warning-sm" : "";
+                                            <div class="dl-wrap">
+                                                <span class="dl-date @cls">@t.DeadlinePhDisplay</span>
+                                                @if (t.IsOverdue)
+                                                {
+                                                    <span class="deadline-badge overdue">Overdue</span>
+                                                }
+                                                else if (t.IsNearDeadline)
+                                                {
+
+                                                    <span class="deadline-badge near">Due Soon</span>
+                                                }
+                                            </div>
+                                        }
+                                        else
+                                        {
+
+                                            <span class="text-muted">—</span>
+                                        }
+                                    </td>
+                                    <td class="col-status"><span class="status-badge status-@t.Status.ToLower()">@t.Status</span></td>
+                                    <td class="col-ws">
+                                        @if (t.Status == "Approved")
+                                        {
+                                            <span class="ws-badge ws-done">
+                                                <i class="fas fa-check-circle" style="font-size:.75rem;"></i> Done
+                                            </span>
+                                        }
+                                        else if (t.WorkStatus != null)
+                                        {
+                                            string wsCls = t.WorkStatus switch
+                                            {
+                                                "In Progress" => "ws-ip",
+                                                "On Hold" => "ws-oh",
+                                                "On Break" => "ws-ob",
+                                                "Nature Call" => "ws-nc",
+                                                _ => ""
+                                            };
+                                            <span class="ws-badge @wsCls">
+                                                <i class="fas fa-circle ws-dot"></i> @t.WorkStatus
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted" style="font-size:.78rem;">—</span>
+                                        }
+                                    </td>
+                                    <td class="col-created">@t.CreatedAt.ToString("MMM dd, yyyy")</td>
+                                    <td class="col-actions">
+                                        <div class="action-buttons">
+                                            @if (t.Status == "New")
+                                            {
+                                                <a asp-action="EditTask" asp-route-id="@t.TaskId" class="btn btn-edit-sm">
+                                                    <i class="fas fa-pen"></i> Edit
+                                                </a>
+                                                <button type="button" class="btn btn-cancel-sm"
+                                                        onclick="openCancelModal(@t.TaskId, '@Html.Raw(t.Title.Replace("'", "\'"))')">
+                                                    <i class="fas fa-times"></i> Cancel
+                                                </button>
+                                            }
+                                            else if (t.Status == "Pending")
+                                            {
+                                                <a asp-action="PendingSubmissions" class="btn btn-warning-sm">
+                                                    <i class="fas fa-eye"></i> Review
+                                                </a>
+                                            }
+                                            else if (t.Status == "Approved")
+                                            {
+                                                <a asp-action="TaskDetails" asp-route-id="@t.TaskId" class="btn btn-view-sm">
+                                                    <i class="fas fa-eye"></i> View
+                                                </a>
+                                            }
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+
+    <!-- OJT LIST -->
+    <div class="section-card">
+        <div class="section-header">
+            <h3><i class="fas fa-user-graduate"></i> My OJT Trainees</h3>
+            <span id="ojtCountBadge" class="ojt-count-badge"></span>
+        </div>
+        <div class="section-body">
+            <!-- Branch filter pills -->
+            <div class="ojt-branch-pills">
+                @foreach (var b in branches)
+                {
+                    <button type="button"
+                            class="ojt-branch-pill @(b == empBranch ? "active" : "")"
+                            data-branch="@b"
+                            onclick="filterOjtBranch('@b')">
+                        <i class="fas fa-map-marker-alt"></i> @b
+                    </button>
+                }
+            </div>
+
+            <!-- JS-rendered OJT list -->
+            <ul class="ojt-list" id="ojtList"></ul>
+
+            <div id="ojtEmptyState" class="empty-state small" style="display:none;">
+                <i class="fas fa-users"></i>
+                <p id="ojtEmptyMsg">No approved OJT trainees in this branch.</p>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- Hidden cancel form — submitted by modal -->
+<form id="cancelTaskForm" asp-action="DeleteTask" method="post" style="display:none;">
+    @Html.AntiForgeryToken()
+    <input type="hidden" name="taskId" id="cancelTaskId" />
+    <input type="hidden" name="returnTo" value="TasksGiven" />
+</form>
+
+<!-- Cancel Confirmation Modal -->
+<div id="cancelOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9000;align-items:center;justify-content:center;padding:16px;"
+     onclick="if(event.target===this)closeCancelModal()">
+    <div style="background:#fff;border-radius:16px;width:100%;max-width:420px;box-shadow:0 20px 60px rgba(0,0,0,.22);overflow:hidden;">
+        <!-- Header -->
+        <div style="padding:22px 24px 0;text-align:center;">
+            <div style="width:58px;height:58px;border-radius:50%;background:#fee2e2;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:1.5rem;color:#dc2626;">
+                <i class="fas fa-exclamation-triangle"></i>
+            </div>
+            <h3 style="margin:0 0 8px;font-size:1.05rem;font-weight:700;color:#0f172a;">Cancel Task?</h3>
+            <p style="margin:0 0 6px;font-size:.88rem;color:#64748b;">
+                Are you sure you want to cancel
+            </p>
+            <p style="margin:0 0 4px;font-size:.92rem;font-weight:700;color:#dc2626;" id="cancelTaskName"></p>
+            <p style="margin:0;font-size:.82rem;color:#94a3b8;">
+                This task will be moved to your <strong>History</strong> as cancelled and cannot be undone.
+            </p>
+        </div>
+        <!-- Footer -->
+        <div style="display:flex;justify-content:center;gap:10px;padding:20px 24px 24px;">
+            <button type="button" onclick="closeCancelModal()" class="btn btn-outline" style="min-width:100px;">
+                No, Keep It
+            </button>
+            <button type="button" onclick="confirmCancel()" style="min-width:130px;padding:8px 18px;border-radius:8px;border:none;background:linear-gradient(135deg,#dc2626,#b91c1c);color:#fff;font-size:.875rem;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;">
+                <i class="fas fa-ban"></i> Yes, Cancel It
+            </button>
+        </div>
+    </div>
+</div>
+
+
+@section Styles {
+    <style>
+        /* 5-card stats grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 16px;
+        }
+
+        .stat-card {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            background: #fff;
+            border-radius: 14px;
+            padding: 18px 16px;
+            box-shadow: 0 1px 4px rgba(0,0,0,.06);
+            border: 1px solid #f1f5f9;
+        }
+
+        .stat-icon {
+            width: 46px;
+            height: 46px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.15rem;
+            flex-shrink: 0;
+        }
+
+        .stat-info {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .stat-value {
+            font-size: 1.6rem;
+            font-weight: 800;
+            color: #0f172a;
+            line-height: 1;
+        }
+
+        .stat-label {
+            font-size: .75rem;
+            color: #64748b;
+            margin-top: 3px;
+            font-weight: 500;
+        }
+
+        .stat-blue .stat-icon {
+            background: #dbeafe;
+            color: #2563ab;
+        }
+
+        .stat-yellow .stat-icon {
+            background: #fef3c7;
+            color: #d97706;
+        }
+
+        .stat-green .stat-icon {
+            background: #dcfce7;
+            color: #16a34a;
+        }
+
+        .stat-red .stat-icon {
+            background: #fee2e2;
+            color: #dc2626;
+        }
+
+        .stat-purple .stat-icon {
+            background: #f3e8ff;
+            color: #7c3aed;
+        }
+
+        @@media(max-width:1100px) {
+            .stats-grid {
+                grid-template-columns: repeat(3,1fr);
+            }
+        }
+
+        @@media(max-width:640px) {
+            .stats-grid {
+                grid-template-columns: repeat(2,1fr);
+            }
+        }
+
+        /* ── Employee task table ── */
+        .emp-task-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+            .emp-task-table thead tr {
+                background: #f8fafc;
+            }
+
+            .emp-task-table th {
+                padding: 10px 14px;
+                font-size: .69rem;
+                font-weight: 700;
+                text-transform: uppercase;
+                letter-spacing: .5px;
+                color: #94a3b8;
+                border-bottom: 2px solid #e2e8f0;
+                white-space: nowrap;
+            }
+
+            .emp-task-table td {
+                padding: 10px 14px;
+                font-size: .83rem;
+                color: #1e293b;
+                border-bottom: 1px solid #f1f5f9;
+                vertical-align: middle;
+            }
+
+            .emp-task-table tbody tr:hover {
+                background: #f8fafc;
+            }
+            /* Title */
+            .emp-task-table td.col-title {
+                max-width: 180px;
+            }
+
+                .emp-task-table td.col-title strong {
+                    display: block;
+                    white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    font-size: .85rem;
+                }
+
+                .emp-task-table td.col-title .sub {
+                    display: block;
+                    white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    font-size: .74rem;
+                    color: #94a3b8;
+                }
+            /* Fixed-width cols */
+            .emp-task-table td.col-type {
+                white-space: nowrap;
+            }
+
+            .emp-task-table td.col-assigned {
+                white-space: nowrap;
+            }
+
+            .emp-task-table td.col-status {
+                white-space: nowrap;
+            }
+
+            .emp-task-table td.col-created {
+                white-space: nowrap;
+                font-size: .8rem;
+                color: #64748b;
+            }
+            /* Deadline — date above badge */
+            .emp-task-table td.col-deadline {
+                min-width: 140px;
+            }
+
+            .emp-task-table .dl-wrap {
+                display: flex;
+                flex-direction: column;
+                gap: 3px;
+            }
+
+            .emp-task-table .dl-date {
+                white-space: nowrap;
+                font-size: .82rem;
+            }
+
+            .emp-task-table .deadline-badge {
+                white-space: nowrap;
+                width: fit-content;
+            }
+            /* Work Status */
+            .emp-task-table td.col-ws {
+                white-space: nowrap;
+                min-width: 110px;
+            }
+
+            .emp-task-table .ws-badge {
+                white-space: nowrap;
+                display: inline-flex;
+                align-items: center;
+                gap: 4px;
+            }
+
+        .ws-dot {
+            font-size: .42rem;
+        }
+
+        .ws-ip {
+            background: #dcfce7;
+            color: #15803d;
+        }
+
+        .ws-oh {
+            background: #fef3c7;
+            color: #b45309;
+        }
+
+        .ws-ob {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .ws-nc {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .ws-done {
+            background: #f0fdf4;
+            color: #15803d;
+            border: 1px solid #bbf7d0;
+        }
+        /* Actions — always full width, never clips */
+        .emp-task-table td.col-actions {
+            white-space: nowrap;
+            width: 1%;
+            padding-right: 20px;
+        }
+
+        .emp-task-table .action-buttons {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            flex-wrap: nowrap;
+        }
+
+        .emp-task-table .btn-edit-sm,
+        .emp-task-table .btn-cancel-sm,
+        .emp-task-table .btn-warning-sm,
+        .emp-task-table .btn-view-sm {
+            padding: 5px 12px;
+            font-size: .78rem;
+            white-space: nowrap;
+        }
+        /* Scroll table on small screens */
+        .emp-table-scroll {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .stat-red .stat-icon {
+            background: #fee2e2;
+            color: #dc2626;
+        }
+
+        .ojt-avatar-img {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            object-fit: cover;
+            flex-shrink: 0;
+            border: 2px solid #e2e8f0;
+        }
+
+        .ojt-branch {
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            font-size: .7rem;
+            font-weight: 600;
+            color: #0369a1;
+            background: #e0f2fe;
+            padding: 1px 7px;
+            border-radius: 20px;
+            margin-top: 2px;
+        }
+
+            .ojt-branch i {
+                font-size: .6rem;
+            }
+
+        /* OJT branch filter pills */
+        .ojt-branch-pills {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-bottom: 14px;
+        }
+
+        .ojt-branch-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 5px 12px;
+            border-radius: 20px;
+            border: 2px solid #e2e8f0;
+            background: #f8fafc;
+            color: #475569;
+            font-size: .76rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all .15s;
+        }
+
+            .ojt-branch-pill i {
+                font-size: .65rem;
+            }
+
+            .ojt-branch-pill:hover {
+                border-color: #93c5fd;
+                background: #eff6ff;
+                color: #1d4ed8;
+            }
+
+            .ojt-branch-pill.active {
+                border-color: #2563ab;
+                background: #2563ab;
+                color: #fff;
+            }
+
+                .ojt-branch-pill.active i {
+                    color: #fff;
+                }
+
+        /* Count badge next to header */
+        .ojt-count-badge {
+            font-size: .72rem;
+            font-weight: 700;
+            color: #0369a1;
+            background: #e0f2fe;
+            padding: 2px 10px;
+            border-radius: 20px;
+        }
+    </style>
+}
+
+@section Scripts {
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+    <script>
+            // OJT branch data — built server-side, injected as JSON
+            var ojtBranchData = @Html.Raw(ojtBranchJson);
+            var currentOjtBranch = "@empBranch";
+
+            function filterOjtBranch(branch) {
+                currentOjtBranch = branch;
+
+                // Update pill active state
+                document.querySelectorAll(".ojt-branch-pill").forEach(function(p) {
+                    p.classList.toggle("active", p.dataset.branch === branch);
+                });
+
+                renderOjtList();
+            }
+
+            function renderOjtList() {
+                var ojts      = ojtBranchData[currentOjtBranch] || [];
+                var list      = document.getElementById("ojtList");
+                var empty     = document.getElementById("ojtEmptyState");
+                var emptyMsg  = document.getElementById("ojtEmptyMsg");
+                var badge     = document.getElementById("ojtCountBadge");
+
+                list.innerHTML = "";
+
+                if (ojts.length === 0) {
+                    list.style.display  = "none";
+                    empty.style.display = "block";
+                    emptyMsg.textContent = "No approved OJT trainees in " + currentOjtBranch + ".";
+                    badge.textContent   = "0 trainees";
+                } else {
+                    list.style.display  = "";
+                    empty.style.display = "none";
+                    badge.textContent   = ojts.length + " trainee" + (ojts.length > 1 ? "s" : "");
+
+                    ojts.forEach(function(ojt) {
+                        var li = document.createElement("li");
+                        li.className = "ojt-list-item";
+
+                        var avatarHtml = ojt.pic
+                            ? '<img src="' + ojt.pic + '" class="ojt-avatar-img" alt="' + ojt.name + '" />'
+                            : '<div class="ojt-avatar">' + ojt.initials + '</div>';
+
+                        li.innerHTML = avatarHtml +
+                            '<div class="ojt-info">' +
+                                '<span class="ojt-name">' + ojt.name + '</span>' +
+                                '<span class="ojt-branch"><i class="fas fa-map-marker-alt"></i> ' + ojt.branch + '</span>' +
+                            '</div>';
+
+                        list.appendChild(li);
+                    });
+                }
+            }
+
+            // Init on load
+            renderOjtList();
+        (function () {
+            var taskChart      = null;
+            var analyticsUrl   = '@Url.Action("GetAnalytics", "Employee")';
+            var myOJTsUrl      = '@Url.Action("GetMyOJTs", "Employee")';
+            var rangeSelect    = document.getElementById('rangeSelect');
+            var ojtSelect      = document.getElementById('ojtSelect');
+            var branchSelect   = document.getElementById('branchSelect');
+            var chartSubtitle  = document.getElementById('chartSubtitle');
+
+            // ── Load OJT dropdown (filtered by branch) ──
+            function loadOJTList(branch) {
+                var url = myOJTsUrl + (branch ? '?branch=' + encodeURIComponent(branch) : '');
+                fetch(url + '&_=' + Date.now(), { credentials: 'same-origin', cache: 'no-store' })
+                    .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+                    .then(function (ojts) {
+                        ojtSelect.innerHTML = '<option value="0">All OJTs</option>';
+                        if (!ojts || ojts.length === 0) return;
+                        ojts.forEach(function (ojt) {
+                            var opt = document.createElement('option');
+                            opt.value       = ojt.userId;
+                            opt.textContent = ojt.fullName;
+                            ojtSelect.appendChild(opt);
+                        });
+                    })
+                    .catch(function (e) { console.error('OJT list load failed:', e); });
+            }
+
+            // ── Branch change: reload OJT list + reset OJT to All + reload chart ──
+            branchSelect.addEventListener('change', function () {
+                loadOJTList(branchSelect.value);
+                ojtSelect.value = '0';
+                loadChart();
+            });
+
+            rangeSelect.addEventListener('change', loadChart);
+            ojtSelect.addEventListener('change',   loadChart);
+            setInterval(loadChart, 300000);
+            loadOJTList('');
+            loadChart();
+
+            function loadChart() {
+                var range       = rangeSelect.value;
+                var ojtUserId   = ojtSelect.value;
+                var ojtLabel    = ojtSelect.options[ojtSelect.selectedIndex].text;
+                var branch      = branchSelect.value;
+                var branchLabel = branchSelect.options[branchSelect.selectedIndex].text;
+
+                // Update subtitle
+                var sub = ojtUserId === '0' ? 'All OJTs' : ojtLabel;
+                if (branch) sub += ' · ' + branchLabel;
+                chartSubtitle.textContent = 'Tasks given vs completed — ' + sub;
+
+                showState('loading');
+
+                var url = analyticsUrl + '?range=' + encodeURIComponent(range) + '&ojtUserId=' + encodeURIComponent(ojtUserId) + '&branch=' + encodeURIComponent(branch);
+                fetch(url + '&_=' + Date.now(), { credentials: 'same-origin', cache: 'no-store' })
+                    .then(function (res) { return res.json(); })
+                    .then(function (data) {
+                        document.getElementById('chartTotalVal').textContent     = data.summary.total;
+                        document.getElementById('chartCompletedVal').textContent = data.summary.completed;
+
+                        // Use summary totals as the source of truth — bucket arrays can all be 0
+                        // even when data exists (e.g. tasks cluster on a single day within a large range)
+                        var hasData = data.summary.total > 0 || data.summary.completed > 0;
+
+                        if (!data.labels || data.labels.length === 0 || !hasData) {
+                            showState('empty'); return;
+                        }
+
+                        showState('chart');
+                        renderChart(data.labels, data.totalData, data.completedData);
+                    })
+                    .catch(function (err) {
+                        console.error('Chart error:', err);
+                        showState('empty');
+                    });
+            }
+
+            function renderChart(labels, totalData, completedData) {
+                var canvas = document.getElementById('taskChart');
+                var ctx    = canvas.getContext('2d');
+
+                var gradTotal = ctx.createLinearGradient(0, 0, 0, 260);
+                gradTotal.addColorStop(0, 'rgba(37,99,171,0.20)');
+                gradTotal.addColorStop(1, 'rgba(37,99,171,0)');
+
+                var gradCompleted = ctx.createLinearGradient(0, 0, 0, 260);
+                gradCompleted.addColorStop(0, 'rgba(22,163,74,0.20)');
+                gradCompleted.addColorStop(1, 'rgba(22,163,74,0)');
+
+                if (taskChart) { taskChart.destroy(); taskChart = null; }
+
+                taskChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [
+                            {
+                                label: 'Tasks Given',
+                                data: totalData,
+                                borderColor: '#2563ab',
+                                backgroundColor: gradTotal,
+                                borderWidth: 2.5,
+                                pointBackgroundColor: '#2563ab',
+                                pointBorderColor: '#fff',
+                                pointBorderWidth: 2,
+                                pointRadius: 4,
+                                pointHoverRadius: 7,
+                                fill: true,
+                                tension: 0.4
+                            },
+                            {
+                                label: 'Completed',
+                                data: completedData,
+                                borderColor: '#16a34a',
+                                backgroundColor: gradCompleted,
+                                borderWidth: 2.5,
+                                pointBackgroundColor: '#16a34a',
+                                pointBorderColor: '#fff',
+                                pointBorderWidth: 2,
+                                pointRadius: 4,
+                                pointHoverRadius: 7,
+                                fill: true,
+                                tension: 0.4
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: { mode: 'index', intersect: false },
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                backgroundColor: '#1e293b',
+                                titleColor: '#94a3b8',
+                                bodyColor: '#f1f5f9',
+                                padding: 12, cornerRadius: 10,
+                                borderColor: '#334155', borderWidth: 1,
+                                callbacks: {
+                                    title: function (items) { return items[0].label; },
+                                    label: function (item) {
+                                        var n = item.parsed.y;
+                                        return ' ' + item.dataset.label + ': ' + n + ' task' + (n !== 1 ? 's' : '');
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                grid: { color: '#f1f5f9' },
+                                ticks: { color: '#94a3b8', font: { size: 11 }, maxRotation: 45, maxTicksLimit: 12 }
+                            },
+                            y: {
+                                beginAtZero: true,
+                                grid: { color: '#f1f5f9' },
+                                ticks: { color: '#94a3b8', font: { size: 11 }, stepSize: 1, precision: 0 }
+                            }
+                        }
+                    }
+                });
+            }
+
+            function showState(state) {
+                document.getElementById('chartLoading').style.display = state === 'loading' ? 'flex'  : 'none';
+                document.getElementById('chartWrap').style.display    = state === 'chart'   ? 'block' : 'none';
+                document.getElementById('chartEmpty').style.display   = state === 'empty'   ? 'flex'  : 'none';
+            }
+        })();
+    </script>
+}

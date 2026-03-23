@@ -1,0 +1,24 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>ITPMS_OJT</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
+    <PackageReference Include="Dapper" Version="2.1.28" />
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="5.2.1" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.Cookies" Version="2.2.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="wwwroot\uploads\chat\" />
+    <Folder Include="wwwroot\uploads\profiles\" />
+    <Folder Include="wwwroot\uploads\submissions\" />
+    <Folder Include="wwwroot\uploads\tasks\" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,707 @@
+﻿@using System.Linq
+@model OJTDashboardViewModel
+@{
+    ViewData["Title"] = "My Dashboard";
+}
+
+<div class="dashboard">
+
+    <!-- STAT CARDS -->
+    <div class="stats-grid">
+        <div class="stat-card stat-blue">
+            <div class="stat-icon"><i class="fas fa-clipboard-list"></i></div>
+            <div class="stat-info">
+                <span class="stat-value">@Model.TotalTasks</span>
+                <span class="stat-label">Total Tasks</span>
+            </div>
+        </div>
+        <div class="stat-card stat-orange">
+            <div class="stat-icon"><i class="fas fa-star"></i></div>
+            <div class="stat-info">
+                <span class="stat-value">@Model.NewTasks</span>
+                <span class="stat-label">New Tasks</span>
+            </div>
+        </div>
+        <div class="stat-card stat-yellow">
+            <div class="stat-icon"><i class="fas fa-clock"></i></div>
+            <div class="stat-info">
+                <span class="stat-value">@Model.PendingTasks</span>
+                <span class="stat-label">Pending Review</span>
+            </div>
+        </div>
+        <div class="stat-card stat-green">
+            <div class="stat-icon"><i class="fas fa-check-circle"></i></div>
+            <div class="stat-info">
+                <span class="stat-value">@Model.CompletedTasks</span>
+                <span class="stat-label">Completed</span>
+            </div>
+        </div>
+        <div class="stat-card stat-red">
+            <div class="stat-icon"><i class="fas fa-ban"></i></div>
+            <div class="stat-info">
+                <span class="stat-value">@Model.CancelledTasks</span>
+                <span class="stat-label">Cancelled</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ANALYTICS CHART -->
+    <div class="section-card analytics-card">
+        <div class="section-header analytics-header">
+            <div class="analytics-title">
+                <div class="analytics-title-icon"><i class="fas fa-chart-line"></i></div>
+                <div>
+                    <h3>Task Analytics</h3>
+                    <span class="analytics-subtitle">Your task progress over time</span>
+                </div>
+            </div>
+            <div class="analytics-controls">
+                <div class="analytics-mini-stats">
+                    <div class="mini-stat">
+                        <span class="mini-stat-dot dot-total"></span>
+                        <span class="mini-stat-label">Total Assigned</span>
+                        <span class="mini-stat-val" id="chartTotalVal">0</span>
+                    </div>
+                    <div class="mini-stat">
+                        <span class="mini-stat-dot dot-completed"></span>
+                        <span class="mini-stat-label">Completed</span>
+                        <span class="mini-stat-val" id="chartCompletedVal">0</span>
+                    </div>
+                </div>
+                <select class="analytics-range-select" id="rangeSelect">
+                    <option value="overall" selected>Overall</option>
+                    <option value="7">Last 1 Week</option>
+                    <option value="14">Last 2 Weeks</option>
+                    <option value="30">Last 1 Month</option>
+                    <option value="60">Last 2 Months</option>
+                    <option value="90">Last 3 Months</option>
+                </select>
+            </div>
+        </div>
+        <div class="analytics-body">
+            <div class="chart-loading" id="chartLoading">
+                <div class="chart-spinner"></div>
+                <span>Loading chart data...</span>
+            </div>
+            <div class="chart-wrap" id="chartWrap" style="display:none;">
+                <canvas id="taskChart"></canvas>
+            </div>
+            <div class="chart-empty" id="chartEmpty" style="display:none;">
+                <i class="fas fa-chart-line"></i>
+                <p>No task data available yet.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- TASK LIST -->
+    <div class="section-card">
+        <div class="section-header">
+            <h3><i class="fas fa-tasks"></i> My Assigned Tasks</h3>
+            <div style="display:flex;gap:8px;">
+                <a asp-action="NewTasks" class="btn btn-outline-sm"><i class="fas fa-star"></i> New</a>
+                <a asp-action="PendingTasks" class="btn btn-outline-sm"><i class="fas fa-hourglass-half"></i> Pending</a>
+                <a asp-action="CompletedTasks" class="btn btn-outline-sm"><i class="fas fa-check"></i> Completed</a>
+            </div>
+        </div>
+        <div class="section-body">
+            @if (!Model.Tasks.Any())
+            {
+                <div class="empty-state">
+                    <i class="fas fa-inbox"></i>
+                    <p>No tasks assigned to you yet.</p>
+                </div>
+            }
+            else
+            {
+                <div class="task-list">
+                    @foreach (var task in Model.Tasks.Take(5))
+                    {
+                        string cardClass = task.IsOverdue ? "task-card task-overdue"
+                        : task.IsNearDeadline ? "task-card task-near-deadline"
+                        : "task-card";
+                        <div class="@cardClass">
+                            <div class="task-card-header">
+                                <div class="task-title-area">
+                                    <h4>@task.Title</h4>
+                                    <span class="status-badge status-@task.Status.ToLower()">@task.Status</span>
+                                    @if (task.TaskType == "Group")
+                                    {
+                                        <span class="status-badge" style="background:#f3e8ff;color:#7c3aed;">
+                                            <i class="fas fa-users"></i> Group
+                                        </span>
+                                    }
+                                    @if (task.Status == "Approved")
+                                    {
+                                        <span class="work-status-badge ws-done">
+                                            <i class="fas fa-check-circle" style="font-size:.75rem;"></i> Done
+                                        </span>
+                                    }
+                                    else if (task.WorkStatus != null)
+                                    {
+                                        <span class="work-status-badge ws-@task.WorkStatus.ToLower().Replace(" ", "-")">
+                                            <i class="fas fa-circle" style="font-size:.5rem;"></i> @task.WorkStatus
+                                        </span>
+                                    }
+                                    @if (task.IsOverdue)
+                                    {
+                                        <span class="deadline-badge overdue">
+                                            <i class="fas fa-exclamation-triangle"></i> Overdue
+                                        </span>
+                                    }
+                                    else if (task.IsNearDeadline)
+                                    {
+                                        <span class="deadline-badge near">
+                                            <i class="fas fa-hourglass-half"></i> Due Soon
+                                        </span>
+                                    }
+                                </div>
+                                <div class="task-meta">
+                                    <span><i class="fas fa-user-tie"></i> @task.AssignedByName</span>
+                                    @if (!string.IsNullOrEmpty(task.AssignedByBranch))
+                                    {
+                                        <span class="meta-branch"><i class="fas fa-map-marker-alt"></i> @task.AssignedByBranch</span>
+                                    }
+                                    <span><i class="fas fa-calendar-plus"></i> @task.CreatedAt.ToString("MMM dd, yyyy")</span>
+                                    @if (task.Deadline.HasValue)
+                                    {
+                                        string metaCls = task.IsOverdue ? "meta-danger" : task.IsNearDeadline ? "meta-warning" : "";
+                                        <span class="@metaCls">
+                                            <i class="fas fa-calendar-times"></i> Due: @task.DeadlinePhDisplay
+                                        </span>
+                                    }
+                                </div>
+                            </div>
+                            <p class="task-desc">@task.Description</p>
+                            @{
+                                var _taskFiles = task.GetAttachedFiles();
+                            }
+                            @if (_taskFiles.Any())
+                            {
+                                <div class="file-chips file-chips-col">
+                                    @foreach (var af in _taskFiles)
+                                    {
+                                        var afExt = System.IO.Path.GetExtension(af.Name).ToLower();
+                                        var afIcon = new[] { ".png", ".jpg", ".jpeg" }.Contains(afExt) ? "fas fa-image" :
+                                        afExt == ".pbix" ? "fas fa-chart-bar" :
+                                        afExt == ".pdf" ? "fas fa-file-pdf" :
+                                        new[] { ".xlsx", ".xls" }.Contains(afExt) ? "fas fa-file-excel" :
+                                        new[] { ".docx", ".doc" }.Contains(afExt) ? "fas fa-file-word" :
+                                        new[] { ".pptx", ".ppt" }.Contains(afExt) ? "fas fa-file-powerpoint" : "fas fa-file";
+                                        <a href="@af.Path" class="file-chip" target="_blank" title="@af.Name">
+                                            <i class="@afIcon"></i>
+                                            <span>@af.Name</span>
+                                        </a>
+                                    }
+                                </div>
+                            }
+                            <div class="task-actions">
+                                <a asp-action="TaskDetails" asp-route-id="@task.TaskId" class="btn btn-outline-sm">
+                                    <i class="fas fa-eye"></i> View Details
+                                </a>
+                                @if (task.Status == "New")
+                                {
+                                    @if (task.HasStarted)
+                                    {
+                                        <a asp-action="SubmitTask" asp-route-id="@task.TaskId" class="btn btn-continue-sm">
+                                            <i class="fas fa-circle-play"></i> Continue Task
+                                        </a>
+                                    }
+                                    else
+                                    {
+                                        <a asp-action="SubmitTask" asp-route-id="@task.TaskId" class="btn btn-start-sm">
+                                            <i class="fas fa-circle-play"></i> Start Task
+                                        </a>
+                                    }
+                                }
+                                else if (task.Status == "Pending")
+                                {
+                                    <span class="btn btn-warning-sm disabled">
+                                        <i class="fas fa-hourglass-half"></i> Under Review
+                                    </span>
+                                }
+                                else if (task.Status == "Approved")
+                                {
+                                    <span class="btn btn-success-sm disabled">
+                                        <i class="fas fa-check"></i> Approved
+                                    </span>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+                @if (Model.Tasks.Count > 5)
+                {
+                    <div style="text-align:center;padding:12px;">
+                        <a asp-action="NewTasks" class="btn btn-outline-sm">
+                            View all @Model.Tasks.Count tasks &rarr;
+                        </a>
+                    </div>
+                }
+            }
+        </div>
+    </div>
+
+</div>
+
+
+
+@section Styles {
+    <style>
+        .file-chips-col {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            margin-top: 6px;
+        }
+
+        .file-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 7px 13px;
+            border-radius: 8px;
+            background: #f0f7ff;
+            border: 1px solid #bfdbfe;
+            color: #1d4ed8;
+            font-size: .82rem;
+            font-weight: 500;
+            text-decoration: none;
+            transition: background .15s,border-color .15s;
+            width: fit-content;
+            max-width: 100%;
+        }
+
+            .file-chip:hover {
+                background: #dbeafe;
+                border-color: #93c5fd;
+                color: #1e40af;
+            }
+
+            .file-chip i {
+                font-size: .85rem;
+                flex-shrink: 0;
+            }
+
+            .file-chip span {
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+
+
+        /* 5-card stats grid for OJT dashboard */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(5,1fr);
+            gap: 16px;
+            margin-bottom: 0;
+        }
+
+        .stat-card {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            background: #fff;
+            border-radius: 14px;
+            padding: 18px 16px;
+            box-shadow: 0 1px 4px rgba(0,0,0,.06);
+            border: 1px solid #f1f5f9;
+        }
+
+        .stat-icon {
+            width: 46px;
+            height: 46px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.15rem;
+            flex-shrink: 0;
+        }
+
+        .stat-info {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .stat-value {
+            font-size: 1.6rem;
+            font-weight: 800;
+            color: #0f172a;
+            line-height: 1;
+        }
+
+        .stat-label {
+            font-size: .75rem;
+            color: #64748b;
+            margin-top: 3px;
+            font-weight: 500;
+        }
+
+        .stat-blue .stat-icon {
+            background: #dbeafe;
+            color: #2563ab;
+        }
+
+        .stat-orange .stat-icon {
+            background: #ffedd5;
+            color: #ea580c;
+        }
+
+        .stat-yellow .stat-icon {
+            background: #fef3c7;
+            color: #d97706;
+        }
+
+        .stat-green .stat-icon {
+            background: #dcfce7;
+            color: #16a34a;
+        }
+
+        .stat-red .stat-icon {
+            background: #fee2e2;
+            color: #dc2626;
+        }
+
+        @@media(max-width:900px) {
+            .stats-grid {
+                grid-template-columns: repeat(3,1fr);
+            }
+        }
+
+        @@media(max-width:560px) {
+            .stats-grid {
+                grid-template-columns: repeat(2,1fr);
+            }
+        }
+
+        .btn-start-sm {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 14px;
+            border-radius: 8px;
+            font-size: .8rem;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            text-decoration: none;
+            background: linear-gradient(135deg,#059669,#047857);
+            color: #fff;
+            transition: opacity .15s;
+        }
+
+        .btn-continue-sm {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 14px;
+            border-radius: 8px;
+            font-size: .8rem;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            text-decoration: none;
+            background: linear-gradient(135deg,#2563ab,#1e40af);
+            color: #fff;
+            transition: opacity .15s;
+        }
+        /* 5-card stats grid for OJT dashboard */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(5,1fr);
+            gap: 16px;
+            margin-bottom: 0;
+        }
+
+        .stat-card {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            background: #fff;
+            border-radius: 14px;
+            padding: 18px 16px;
+            box-shadow: 0 1px 4px rgba(0,0,0,.06);
+            border: 1px solid #f1f5f9;
+        }
+
+        .stat-icon {
+            width: 46px;
+            height: 46px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.15rem;
+            flex-shrink: 0;
+        }
+
+        .stat-info {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .stat-value {
+            font-size: 1.6rem;
+            font-weight: 800;
+            color: #0f172a;
+            line-height: 1;
+        }
+
+        .stat-label {
+            font-size: .75rem;
+            color: #64748b;
+            margin-top: 3px;
+            font-weight: 500;
+        }
+
+        .stat-blue .stat-icon {
+            background: #dbeafe;
+            color: #2563ab;
+        }
+
+        .stat-orange .stat-icon {
+            background: #ffedd5;
+            color: #ea580c;
+        }
+
+        .stat-yellow .stat-icon {
+            background: #fef3c7;
+            color: #d97706;
+        }
+
+        .stat-green .stat-icon {
+            background: #dcfce7;
+            color: #16a34a;
+        }
+
+        .stat-red .stat-icon {
+            background: #fee2e2;
+            color: #dc2626;
+        }
+
+        @@media(max-width:900px) {
+            .stats-grid {
+                grid-template-columns: repeat(3,1fr);
+            }
+        }
+
+        @@media(max-width:560px) {
+            .stats-grid {
+                grid-template-columns: repeat(2,1fr);
+            }
+        }
+
+        .btn-start-sm:hover, .btn-continue-sm:hover {
+            opacity: .88;
+        }
+
+        .task-overdue {
+            border-left: 4px solid #dc2626 !important;
+            background: #fff5f5;
+        }
+
+        .task-near-deadline {
+            border-left: 4px solid #d97706 !important;
+            background: #fffbeb;
+        }
+
+        .deadline-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 2px 8px;
+            border-radius: 20px;
+            font-size: .72rem;
+            font-weight: 600;
+        }
+
+            .deadline-badge.overdue {
+                background: #fee2e2;
+                color: #b91c1c;
+            }
+
+            .deadline-badge.near {
+                background: #fef3c7;
+                color: #b45309;
+            }
+
+        .meta-danger {
+            color: #dc2626 !important;
+        }
+
+        .meta-warning {
+            color: #d97706 !important;
+        }
+
+        .meta-branch {
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            font-size: .72rem;
+            font-weight: 600;
+            color: #0369a1;
+            background: #e0f2fe;
+            padding: 1px 7px;
+            border-radius: 20px;
+        }
+
+            .meta-branch i {
+                font-size: .6rem;
+            }
+    </style>
+}
+
+@section Scripts {
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+    <script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+    <script>
+        (function () {
+            var taskChart    = null;
+            var analyticsUrl = '@Url.Action("GetAnalytics", "OJT")';
+            var rangeSelect  = document.getElementById('rangeSelect');
+
+            rangeSelect.addEventListener('change', loadChart);
+            setInterval(loadChart, 300000);
+            loadChart();
+
+            function loadChart() {
+                var range = rangeSelect.value;
+                showState('loading');
+
+                fetch(analyticsUrl + '?range=' + encodeURIComponent(range) + '&_=' + Date.now(), { credentials: 'same-origin', cache: 'no-store' })
+                    .then(function (res) { return res.json(); })
+                    .then(function (data) {
+                        document.getElementById('chartTotalVal').textContent     = data.summary.total;
+                        document.getElementById('chartCompletedVal').textContent = data.summary.completed;
+
+                        var hasData = data.summary.total > 0 || data.summary.completed > 0;
+
+                        if (!data.labels || data.labels.length === 0) {
+                            showState('empty');
+                            return;
+                        }
+                        if (!hasData) {
+                            showState('empty');
+                            return;
+                        }
+
+                        showState('chart');
+                        renderChart(data.labels, data.totalData, data.completedData);
+                    })
+                    .catch(function (err) {
+                        console.error('Chart error:', err);
+                        showState('empty');
+                    });
+            }
+
+            function renderChart(labels, totalData, completedData) {
+                var canvas = document.getElementById('taskChart');
+                var ctx    = canvas.getContext('2d');
+
+                var gradTotal = ctx.createLinearGradient(0, 0, 0, 260);
+                gradTotal.addColorStop(0, 'rgba(37,99,171,0.20)');
+                gradTotal.addColorStop(1, 'rgba(37,99,171,0)');
+
+                var gradCompleted = ctx.createLinearGradient(0, 0, 0, 260);
+                gradCompleted.addColorStop(0, 'rgba(22,163,74,0.20)');
+                gradCompleted.addColorStop(1, 'rgba(22,163,74,0)');
+
+                if (taskChart) { taskChart.destroy(); taskChart = null; }
+
+                taskChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [
+                            {
+                                label: 'Total Assigned',
+                                data: totalData,
+                                borderColor: '#2563ab',
+                                backgroundColor: gradTotal,
+                                borderWidth: 2.5,
+                                pointBackgroundColor: '#2563ab',
+                                pointBorderColor: '#fff',
+                                pointBorderWidth: 2,
+                                pointRadius: 4,
+                                pointHoverRadius: 7,
+                                fill: true,
+                                tension: 0.4
+                            },
+                            {
+                                label: 'Completed',
+                                data: completedData,
+                                borderColor: '#16a34a',
+                                backgroundColor: gradCompleted,
+                                borderWidth: 2.5,
+                                pointBackgroundColor: '#16a34a',
+                                pointBorderColor: '#fff',
+                                pointBorderWidth: 2,
+                                pointRadius: 4,
+                                pointHoverRadius: 7,
+                                fill: true,
+                                tension: 0.4
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: { mode: 'index', intersect: false },
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                backgroundColor: '#1e293b',
+                                titleColor: '#94a3b8',
+                                bodyColor: '#f1f5f9',
+                                padding: 12,
+                                cornerRadius: 10,
+                                borderColor: '#334155',
+                                borderWidth: 1,
+                                callbacks: {
+                                    title: function (items) { return items[0].label; },
+                                    label: function (item) {
+                                        var n = item.parsed.y;
+                                        return ' ' + item.dataset.label + ': ' + n + ' task' + (n !== 1 ? 's' : '');
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                grid: { color: '#f1f5f9' },
+                                ticks: {
+                                    color: '#94a3b8',
+                                    font: { size: 11 },
+                                    maxRotation: 45,
+                                    maxTicksLimit: 12
+                                }
+                            },
+                            y: {
+                                beginAtZero: true,
+                                grid: { color: '#f1f5f9' },
+                                ticks: {
+                                    color: '#94a3b8',
+                                    font: { size: 11 },
+                                    stepSize: 1,
+                                    precision: 0
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+
+            function showState(state) {
+                document.getElementById('chartLoading').style.display = state === 'loading' ? 'flex'  : 'none';
+                document.getElementById('chartWrap').style.display    = state === 'chart'   ? 'block' : 'none';
+                document.getElementById('chartEmpty').style.display   = state === 'empty'   ? 'flex'  : 'none';
+            }
+        })();
+
+
+            // ── Work Status Modal ──
+
+    </script>
+}

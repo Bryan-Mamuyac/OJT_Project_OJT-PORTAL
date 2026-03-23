@@ -1,0 +1,766 @@
+﻿@model SubmitTaskViewModel
+@{
+    bool isContinue = Model.CurrentWorkStatus != null;
+    ViewData["Title"] = isContinue ? "Continue Task" : "Start Task";
+}
+
+<div class="form-page">
+    <div class="form-card">
+
+        <!-- Header -->
+        <div class="form-card-header">
+            <h3>
+                <i class="fas fa-circle-play"></i>
+                @(isContinue ? "Continue Task" : "Start Task")
+            </h3>
+            <p>Complete the task submission form below.</p>
+        </div>
+
+        <!-- Task Info Banner -->
+        <div class="task-info-banner">
+            <div class="task-info-item">
+                <span class="info-label">Task</span>
+                <span class="info-value">@Model.TaskTitle</span>
+            </div>
+            <div class="task-info-item">
+                <span class="info-label">Assigned By</span>
+                <span class="info-value">
+                    <i class="fas fa-user-tie" style="color:#64748b;margin-right:4px;"></i>@Model.AssignedByName
+                </span>
+            </div>
+            @if (!string.IsNullOrEmpty(Model.DeadlineDisplay))
+            {
+                <div class="task-info-item" style="grid-column:span 2;">
+                    <span class="info-label">Deadline</span>
+                    <span class="info-value" style="color:#b45309;">
+                        <i class="fas fa-clock" style="margin-right:4px;"></i>@Model.DeadlineDisplay
+                    </span>
+                </div>
+            }
+        </div>
+
+        <!-- Form -->
+        <form asp-action="SubmitTask" method="post" enctype="multipart/form-data" id="submitTaskForm">
+            @Html.AntiForgeryToken()
+            <input type="hidden" asp-for="TaskId" />
+            <div asp-validation-summary="ModelOnly" class="alert alert-danger" style="margin:16px 24px 0;"></div>
+
+            <div style="padding:20px 24px 0;">
+
+                <!-- Submission Title — auto filled -->
+                <div class="form-group">
+                    <label asp-for="SubmissionTitle">
+                        <i class="fas fa-heading"></i> Submission Title
+                    </label>
+                    <div class="auto-field-wrap">
+                        <input asp-for="SubmissionTitle"
+                               class="form-control auto-filled"
+                               value="@Model.TaskTitle"
+                               readonly />
+                        <span class="auto-badge"><i class="fas fa-magic"></i> Auto-filled</span>
+                    </div>
+                    <span asp-validation-for="SubmissionTitle" class="field-error"></span>
+                </div>
+
+                <!-- Description -->
+                <div class="form-group">
+                    <label asp-for="SubmissionDescription">
+                        <i class="fas fa-align-left"></i> Description
+                    </label>
+                    <textarea asp-for="SubmissionDescription" class="form-control" rows="6"
+                              placeholder="Describe what you've accomplished, challenges faced, and outcomes..."></textarea>
+                    <span asp-validation-for="SubmissionDescription" class="field-error"></span>
+                </div>
+
+                <!-- Attach Files -->
+                <div class="form-group">
+                    <label>
+                        <i class="fas fa-file-upload"></i> Attach Files
+                        <span class="lbl-opt">(Optional — up to 5 files)</span>
+                    </label>
+                    <div class="mfu-area" id="fileArea">
+                        <input name="Files" type="file" id="fileInput"
+                               accept=".pdf,.xlsx,.xls,.docx,.doc,.pptx,.ppt,.png,.jpg,.jpeg,.pbix,.zip"
+                               multiple style="display:none" />
+                        <div class="mfu-prompt" id="filePrompt" onclick="document.getElementById('fileInput').click()">
+                            <i class="fas fa-cloud-upload-alt"></i>
+                            <p>Drag & drop or <strong>click to browse</strong></p>
+                            <small>PDF · Excel · Word · PowerPoint · PNG · JPG · Power BI · ZIP</small>
+                        </div>
+                        <div class="mfu-list" id="fileList"></div>
+                        <div class="mfu-add" id="mfuAddBtn" style="display:none" onclick="document.getElementById('fileInput').click()">
+                            <i class="fas fa-plus"></i> Add another file
+                        </div>
+                    </div>
+                    <span class="field-error" id="fileError"></span>
+                </div>
+
+                <!-- Reference Link -->
+                <div class="form-group">
+                    <label asp-for="LinkUrl">
+                        <i class="fas fa-link"></i> Reference Link
+                        <span class="lbl-opt">(Optional)</span>
+                    </label>
+                    <input asp-for="LinkUrl" class="form-control"
+                           placeholder="https://..." type="url" />
+                    <span asp-validation-for="LinkUrl" class="field-error"></span>
+                </div>
+
+            </div>
+
+            <!-- Actions -->
+            <div class="td-actions">
+                <a asp-action="Index" class="btn btn-outline">
+                    <i class="fas fa-arrow-left"></i> Back to Dashboard
+                </a>
+
+                <!-- Update Status dropdown button -->
+                <div class="ws-dropdown-wrap" id="wsDropWrap">
+                    @if (isContinue && Model.CurrentWorkStatus != null)
+                    {
+                        <button type="button" class="btn btn-update-status" onclick="toggleWSDrop()">
+                            <i class="fas fa-circle ws-dot-@Model.CurrentWorkStatus.ToLower().Replace(" ", "-")"></i>
+                            @Model.CurrentWorkStatus
+                            <i class="fas fa-chevron-down" style="margin-left:4px;font-size:.7rem;"></i>
+                        </button>
+                    }
+                    else
+                    {
+                        <button type="button" class="btn btn-update-status" onclick="toggleWSDrop()">
+                            <i class="fas fa-tasks"></i> Update Status
+                            <i class="fas fa-chevron-down" style="margin-left:4px;font-size:.7rem;"></i>
+                        </button>
+                    }
+                    <!-- Dropdown panel -->
+                    <div class="ws-drop-panel" id="wsDropPanel" style="display:none;">
+                        <div class="ws-drop-header">Work Status</div>
+                        <div class="ws-drop-option" onclick="selectWSOption('In Progress')">
+                            <span class="ws-opt-dot" style="background:#16a34a;"></span>
+                            <span>In Progress</span>
+                        </div>
+                        <div class="ws-drop-option" onclick="selectWSOption('On Hold')">
+                            <span class="ws-opt-dot" style="background:#d97706;"></span>
+                            <span>On Hold</span>
+                        </div>
+                        <div class="ws-drop-option" onclick="selectWSOption('On Break')">
+                            <span class="ws-opt-dot" style="background:#2563ab;"></span>
+                            <span>On Break</span>
+                        </div>
+                        <div class="ws-drop-option" onclick="selectWSOption('Nature Call')">
+                            <span class="ws-opt-dot" style="background:#059669;"></span>
+                            <span>Nature Call</span>
+                        </div>
+                        <!-- Optional description -->
+                        <div class="ws-drop-note-area" id="wsDropNoteArea" style="display:none;">
+                            <textarea id="wsDropNote" class="form-control" rows="2"
+                                      placeholder="Optional note about your status..."></textarea>
+                            <div style="display:flex;gap:6px;margin-top:6px;justify-content:flex-end;">
+                                <button type="button" class="btn-drop-cancel" onclick="closeWSDrop()">Cancel</button>
+                                <button type="button" class="btn-drop-save" onclick="saveWSDrop()">
+                                    <i class="fas fa-save"></i> Save
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-paper-plane"></i> Submit Task
+                </button>
+            </div>
+        </form>
+
+        <!-- Hidden form for saving status only -->
+        <form id="wsProgForm" method="post" action="/OJT/StartTask" style="display:none;">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="TaskId" value="@Model.TaskId" />
+            <input type="hidden" name="WorkStatus" id="wsProgStatus" />
+            <input type="hidden" name="Description" id="wsProgNote" />
+            <input type="hidden" name="goSubmit" value="false" />
+            <input type="hidden" name="returnUrl" value="/OJT/SubmitTask/@Model.TaskId" />
+        </form>
+
+        <!-- Activity Log -->
+        @if (Model.RecentLogs.Any())
+        {
+            <div class="log-section">
+                <h4>
+                    <i class="fas fa-history"></i> Activity Log
+                    <span class="log-count">@Model.RecentLogs.Count update@(Model.RecentLogs.Count != 1 ? "s" : "")</span>
+                </h4>
+                <div class="log-timeline">
+                    @foreach (var log in Model.RecentLogs)
+                    {
+                        <div class="log-entry">
+                            <div class="log-dot" style="background:@log.WorkStatusColor;">
+                                <i class="@log.WorkStatusIcon" style="font-size:.55rem;color:#fff;"></i>
+                            </div>
+                            <div class="log-body">
+                                <div class="log-row">
+                                    <span class="log-ws" style="color:@log.WorkStatusColor;">@log.WorkStatus</span>
+                                    <span class="log-ts">@log.LoggedAt.AddHours(8).ToString("MMM dd, yyyy · h:mm tt")</span>
+                                </div>
+                                @if (!string.IsNullOrEmpty(log.Description))
+                                {
+                                    <p class="log-note">@log.Description</p>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+
+    </div>
+</div>
+
+@section Styles {
+    <style>
+        /* Task info banner */
+        .task-info-banner {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            padding: 16px 24px;
+            background: #f1f5f9;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .task-info-item {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+
+        .info-label {
+            font-size: .7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .5px;
+            color: #94a3b8;
+        }
+
+        .info-value {
+            font-size: .95rem;
+            font-weight: 600;
+            color: #0f172a;
+        }
+
+        /* Auto-filled */
+        .auto-field-wrap {
+            position: relative;
+        }
+
+        .auto-filled {
+            background: #f1f5f9 !important;
+            color: #475569 !important;
+            border-color: #cbd5e1 !important;
+            cursor: default;
+            padding-right: 110px;
+        }
+
+        .auto-badge {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: .7rem;
+            font-weight: 600;
+            color: #2563ab;
+            background: #dbeafe;
+            border: 1px solid #bfdbfe;
+            border-radius: 20px;
+            padding: 2px 8px;
+            white-space: nowrap;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            pointer-events: none;
+        }
+
+        .lbl-opt {
+            font-size: .75rem;
+            color: #94a3b8;
+            font-weight: 400;
+            margin-left: 4px;
+        }
+
+        /* Action bar */
+        .td-actions {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 10px;
+            padding: 16px 24px;
+            border-top: 1px solid #e2e8f0;
+            background: #f8fafc;
+            margin-top: 16px;
+            flex-wrap: wrap;
+        }
+
+        /* ── Work Status dropdown ── */
+        .ws-dropdown-wrap {
+            position: relative;
+        }
+
+        .btn-update-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 14px;
+            border-radius: 8px;
+            font-size: .85rem;
+            font-weight: 600;
+            border: 2px solid #e2e8f0;
+            color: #475569;
+            background: #fff;
+            cursor: pointer;
+            transition: border-color .15s,background .15s;
+            white-space: nowrap;
+        }
+
+            .btn-update-status:hover {
+                border-color: #2563ab;
+                color: #2563ab;
+                background: #f0f7ff;
+            }
+
+            .btn-update-status .fa-circle {
+                font-size: .55rem;
+                margin-right: 2px;
+            }
+
+        .ws-dot-in-progress {
+            color: #16a34a;
+        }
+
+        .ws-dot-on-hold {
+            color: #d97706;
+        }
+
+        .ws-dot-on-break {
+            color: #2563ab;
+        }
+
+        .ws-dot-nature-call {
+            color: #059669;
+        }
+
+        .ws-drop-panel {
+            position: absolute;
+            bottom: calc(100% + 8px);
+            right: 0;
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0,0,0,.14);
+            min-width: 220px;
+            z-index: 500;
+            overflow: hidden;
+        }
+
+        .ws-drop-header {
+            padding: 9px 14px;
+            font-size: .7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .5px;
+            color: #94a3b8;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .ws-drop-option {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 14px;
+            cursor: pointer;
+            font-size: .875rem;
+            font-weight: 500;
+            color: #1e293b;
+            transition: background .12s;
+        }
+
+            .ws-drop-option:hover {
+                background: #f0f7ff;
+            }
+
+            .ws-drop-option.ws-opt-active {
+                background: #eff6ff;
+                font-weight: 700;
+            }
+
+        .ws-opt-dot {
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .ws-drop-note-area {
+            padding: 10px 14px 12px;
+            border-top: 1px solid #f1f5f9;
+            background: #f8fafc;
+        }
+
+        .btn-drop-cancel {
+            padding: 5px 12px;
+            border-radius: 6px;
+            border: 1px solid #e2e8f0;
+            background: #fff;
+            color: #64748b;
+            font-size: .8rem;
+            cursor: pointer;
+        }
+
+        .btn-drop-save {
+            padding: 5px 12px;
+            border-radius: 6px;
+            border: none;
+            background: #2563ab;
+            color: #fff;
+            font-size: .8rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .btn-drop-cancel:hover {
+            background: #f1f5f9;
+        }
+
+        .btn-drop-save:hover {
+            background: #1e40af;
+        }
+
+        /* Activity log */
+        .log-section {
+            padding: 20px 24px 24px;
+            border-top: 2px solid #e2e8f0;
+        }
+
+            .log-section h4 {
+                font-size: .95rem;
+                font-weight: 700;
+                color: #1e293b;
+                margin: 0 0 14px;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+
+        .log-count {
+            font-size: .72rem;
+            font-weight: 600;
+            background: #e2e8f0;
+            color: #64748b;
+            border-radius: 20px;
+            padding: 2px 8px;
+        }
+
+        .log-timeline {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .log-entry {
+            display: flex;
+            gap: 12px;
+            padding-bottom: 14px;
+            position: relative;
+        }
+
+            .log-entry:not(:last-child)::before {
+                content: '';
+                position: absolute;
+                left: 14px;
+                top: 28px;
+                bottom: 0;
+                width: 2px;
+                background: #e2e8f0;
+            }
+
+        .log-dot {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            z-index: 1;
+        }
+
+        .log-body {
+            flex: 1;
+            padding-top: 3px;
+        }
+
+        .log-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .log-ws {
+            font-size: .8rem;
+            font-weight: 700;
+        }
+
+        .log-ts {
+            font-size: .72rem;
+            color: #94a3b8;
+            margin-left: auto;
+        }
+
+        .log-note {
+            margin: 4px 0 0;
+            font-size: .8rem;
+            color: #475569;
+            background: #f1f5f9;
+            border-radius: 6px;
+            padding: 5px 9px;
+            border-left: 3px solid #e2e8f0;
+        }
+
+
+        /* ── Multi-file upload ── */
+        .mfu-area {
+            border: 2px dashed #cbd5e1;
+            border-radius: 12px;
+            background: #f8fafc;
+            transition: border-color .2s;
+        }
+
+            .mfu-area.drag-over {
+                border-color: #2563ab;
+                background: #eff6ff;
+            }
+
+        .mfu-prompt {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 24px 20px;
+            cursor: pointer;
+            text-align: center;
+            gap: 4px;
+        }
+
+            .mfu-prompt i {
+                font-size: 2rem;
+                color: #93c5fd;
+                margin-bottom: 4px;
+            }
+
+            .mfu-prompt p {
+                margin: 0;
+                font-size: .875rem;
+                color: #475569;
+            }
+
+            .mfu-prompt small {
+                color: #94a3b8;
+                font-size: .72rem;
+            }
+
+        .mfu-list {
+            padding: 4px 10px 0;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .mfu-chip {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-size: .82rem;
+            color: #334155;
+        }
+
+            .mfu-chip i.mfu-icon {
+                font-size: .95rem;
+                flex-shrink: 0;
+            }
+
+            .mfu-chip .mfu-name {
+                flex: 1;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+
+            .mfu-chip .mfu-size {
+                font-size: .72rem;
+                color: #94a3b8;
+                flex-shrink: 0;
+            }
+
+            .mfu-chip .mfu-remove {
+                background: none;
+                border: none;
+                cursor: pointer;
+                color: #94a3b8;
+                font-size: .9rem;
+                padding: 2px 4px;
+                border-radius: 4px;
+                transition: color .15s,background .15s;
+                flex-shrink: 0;
+                display: flex;
+                align-items: center;
+            }
+
+                .mfu-chip .mfu-remove:hover {
+                    color: #dc2626;
+                    background: #fee2e2;
+                }
+
+        .mfu-add {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 10px 14px;
+            cursor: pointer;
+            font-size: .8rem;
+            font-weight: 600;
+            color: #2563ab;
+            border-top: 1px dashed #e2e8f0;
+            margin-top: 4px;
+            transition: background .15s;
+            border-radius: 0 0 10px 10px;
+        }
+
+            .mfu-add:hover {
+                background: #eff6ff;
+            }
+
+            .mfu-add i {
+                font-size: .75rem;
+            }
+
+        @@media(max-width:560px) {
+            .task-info-banner {
+                grid-template-columns: 1fr;
+            }
+
+            .td-actions {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .ws-drop-panel {
+                right: auto;
+                left: 0;
+            }
+        }
+    </style>
+}
+
+@section Scripts {
+    <script>
+        var _wsPicked = null;
+
+        function toggleWSDrop() {
+            var panel = document.getElementById('wsDropPanel');
+            var open  = panel.style.display !== 'none';
+            panel.style.display = open ? 'none' : 'block';
+            if (!open) {
+                // pre-highlight current status
+                var current = '@Html.Raw(Model.CurrentWorkStatus ?? "")';
+                document.querySelectorAll('.ws-drop-option').forEach(function(el) {
+                    el.classList.remove('ws-opt-active');
+                });
+                if (current) {
+                    document.querySelectorAll('.ws-drop-option').forEach(function(el) {
+                        if (el.querySelector('span:last-child').textContent.trim() === current) {
+                            el.classList.add('ws-opt-active');
+                        }
+                    });
+                }
+            }
+        }
+
+        function selectWSOption(status) {
+            _wsPicked = status;
+            // Highlight selected
+            document.querySelectorAll('.ws-drop-option').forEach(function(el) {
+                el.classList.remove('ws-opt-active');
+                if (el.querySelector('span:last-child').textContent.trim() === status) {
+                    el.classList.add('ws-opt-active');
+                }
+            });
+            // Show note area
+            document.getElementById('wsDropNoteArea').style.display = 'block';
+            document.getElementById('wsDropNote').value = '';
+            document.getElementById('wsDropNote').focus();
+        }
+
+        function closeWSDrop() {
+            document.getElementById('wsDropPanel').style.display = 'none';
+            document.getElementById('wsDropNoteArea').style.display = 'none';
+            _wsPicked = null;
+        }
+
+        function saveWSDrop() {
+            if (!_wsPicked) return;
+            document.getElementById('wsProgStatus').value = _wsPicked;
+            document.getElementById('wsProgNote').value   = document.getElementById('wsDropNote').value;
+            document.getElementById('wsProgForm').submit();
+        }
+
+        // Close dropdown if clicking outside
+        document.addEventListener('click', function(e) {
+            var wrap = document.getElementById('wsDropWrap');
+            if (wrap && !wrap.contains(e.target)) {
+                closeWSDrop();
+            }
+        });
+
+        // ── Multi-file upload ──
+        var mfuFiles=[]; var MFU_MAX=5;
+        var MFU_ALLOWED=['.pdf','.xlsx','.xls','.docx','.doc','.pptx','.ppt','.png','.jpg','.jpeg','.pbix','.zip'];
+        function mfuIcon(n){var e=n.substring(n.lastIndexOf('.')).toLowerCase();if(['.png','.jpg','.jpeg'].includes(e))return 'fas fa-image';if(e==='.pbix')return 'fas fa-chart-bar';if(e==='.pdf')return 'fas fa-file-pdf';if(['.xlsx','.xls'].includes(e))return 'fas fa-file-excel';if(['.docx','.doc'].includes(e))return 'fas fa-file-word';if(['.pptx','.ppt'].includes(e))return 'fas fa-file-powerpoint';if (e==='.zip') return 'fas fa-file-archive'; return 'fas fa-file';}
+        function mfuSize(b){if(b<1024)return b+' B';if(b<1048576)return (b/1024).toFixed(1)+' KB';return (b/1048576).toFixed(1)+' MB';}
+        function mfuRender(){
+            var list=document.getElementById('fileList'),prompt=document.getElementById('filePrompt'),addBtn=document.getElementById('mfuAddBtn'),err=document.getElementById('fileError');
+            list.innerHTML='';
+            if(mfuFiles.length===0){prompt.style.display='flex';addBtn.style.display='none';}
+            else{
+                prompt.style.display='none';
+                addBtn.style.display=mfuFiles.length<MFU_MAX?'flex':'none';
+                mfuFiles.forEach(function(f,i){
+                    var c=document.createElement('div');c.className='mfu-chip';
+                    c.innerHTML='<i class="mfu-icon '+mfuIcon(f.name)+'"></i><span class="mfu-name" title="'+f.name+'">'+f.name+'</span><span class="mfu-size">'+mfuSize(f.size)+'</span><button type="button" class="mfu-remove" onclick="mfuRemove('+i+')" title="Remove"><i class="fas fa-times"></i></button>';
+                    list.appendChild(c);
+                });
+            }
+            err.textContent=''; mfuSync();
+        }
+        function mfuSync(){var dt=new DataTransfer();mfuFiles.forEach(function(f){dt.items.add(f);});document.getElementById('fileInput').files=dt.files;}
+        function mfuAdd(fl){
+            var err=document.getElementById('fileError'),arr=Array.from(fl);
+            for(var i=0;i<arr.length;i++){
+                var f=arr[i],ext=f.name.substring(f.name.lastIndexOf('.')).toLowerCase();
+                if(!MFU_ALLOWED.includes(ext)){err.textContent='"'+f.name+'" is not an allowed type.';continue;}
+                if(mfuFiles.length>=MFU_MAX){err.textContent='Maximum '+MFU_MAX+' files allowed.';break;}
+                if(mfuFiles.some(function(x){return x.name===f.name&&x.size===f.size;}))continue;
+                mfuFiles.push(f);
+            }
+            document.getElementById('fileInput').value=''; mfuRender();
+        }
+        function mfuRemove(i){mfuFiles.splice(i,1);mfuRender();}
+        document.getElementById('fileInput').addEventListener('change',function(){if(this.files.length)mfuAdd(this.files);});
+        var dropArea=document.getElementById('fileArea');
+        dropArea.addEventListener('dragover',function(e){e.preventDefault();dropArea.classList.add('drag-over');});
+        dropArea.addEventListener('dragleave',function(){dropArea.classList.remove('drag-over');});
+        dropArea.addEventListener('drop',function(e){e.preventDefault();dropArea.classList.remove('drag-over');if(e.dataTransfer.files.length)mfuAdd(e.dataTransfer.files);});
+    </script>
+}

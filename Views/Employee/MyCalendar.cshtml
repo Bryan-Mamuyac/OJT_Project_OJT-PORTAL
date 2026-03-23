@@ -1,0 +1,678 @@
+﻿@{
+    ViewData["Title"] = "My Calendar";
+    var ojts = ViewBag.OJTs as IEnumerable<dynamic> ?? Enumerable.Empty<dynamic>();
+    var branches = ViewBag.Branches as string[] ?? Array.Empty<string>();
+}
+
+<div class="dashboard">
+    <div class="section-card mycal-card">
+
+        <!-- Header -->
+        <div class="mycal-header">
+            <div class="mycal-title-wrap">
+                <div class="mycal-icon-box"><i class="fas fa-calendar-alt"></i></div>
+                <div>
+                    <h3 class="mycal-title">My Calendar</h3>
+                    <span class="mycal-sub">Tasks assigned &amp; deadlines</span>
+                </div>
+            </div>
+            <div class="mycal-controls">
+                <div class="mycal-filter-pill">
+                    <i class="fas fa-map-marker-alt"></i>
+                    <select id="branchFilter" class="mycal-select">
+                        <option value="">All Branches</option>
+                        @foreach (var b in branches)
+                        {
+                            <option value="@b">@b</option>
+                        }
+                    </select>
+                </div>
+                <div class="mycal-filter-pill">
+                    <i class="fas fa-user-graduate"></i>
+                    <select id="ojtFilter" class="mycal-select">
+                        <option value="0">All OJTs</option>
+                        @foreach (var o in ojts)
+                        {
+                            <option value="@o.UserId">@o.FullName</option>
+                        }
+                    </select>
+                </div>
+                <button class="mycal-export-btn" id="exportPdfBtn">
+                    <i class="fas fa-file-pdf"></i><span>Export PDF</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Legend -->
+        <div class="mycal-legend">
+            <div class="mycal-legend-item"><span class="mycal-dot" style="background:#2563ab"></span>Assigned</div>
+            <div class="mycal-legend-item"><span class="mycal-dot" style="background:#16a34a"></span>Completed</div>
+            <div class="mycal-legend-item"><span class="mycal-dot" style="background:#7c3aed"></span>Due Date</div>
+        </div>
+
+        <!-- Calendar -->
+        <div class="mycal-body">
+            <div id="calendar"></div>
+        </div>
+
+    </div>
+</div>
+
+<!-- Event modal -->
+<div class="mycal-overlay" id="calModal" style="display:none">
+    <div class="mycal-modal">
+        <div class="mycal-modal-hdr" id="calModalHdr">
+            <i id="calModalIcon" class="fas fa-clipboard-list"></i>
+            <span id="calModalTitle" class="mycal-modal-ttl"></span>
+            <button class="mycal-modal-x" onclick="closeModal()"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="mycal-modal-body">
+            <div class="mycal-modal-row" id="calModalTypeRow"><i class="fas fa-user"></i><span id="calModalTaskType"></span></div>
+            <div id="calModalMembersRow" style="display:none">
+                <div class="mycal-modal-row" style="align-items:flex-start">
+                    <i class="fas fa-list-ul" style="margin-top:3px"></i>
+                    <div id="calModalMembersList" style="display:flex;flex-direction:column;gap:3px;font-size:.82rem;color:#374151;"></div>
+                </div>
+            </div>
+            <div class="mycal-modal-row" id="calModalBranchRow"><i class="fas fa-map-marker-alt"></i><span id="calModalBranch"></span></div>
+            <div class="mycal-modal-row"><i class="fas fa-user-graduate"></i><span id="calModalBy"></span></div>
+            <div class="mycal-modal-row"><i class="fas fa-calendar-day"></i><span id="calModalDate"></span></div>
+            <div class="mycal-modal-row" id="calModalDueRow" style="display:none"><i class="fas fa-calendar-times"></i><span id="calModalDue"></span></div>
+            <div class="mycal-modal-row"><i class="fas fa-tag"></i><span id="calModalType"></span></div>
+        </div>
+    </div>
+</div>
+
+@section Styles {
+    <style>
+        /* ── Card shell ── */
+        .mycal-card {
+            padding: 0;
+            overflow: visible;
+            border-radius: 16px;
+        }
+
+        /* ── Header ── */
+        .mycal-header {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+            padding: 18px 22px;
+            border-bottom: 1px solid #f1f5f9;
+            background: #fff;
+        }
+
+        .mycal-title-wrap {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .mycal-icon-box {
+            width: 42px;
+            height: 42px;
+            border-radius: 12px;
+            background: #dbeafe;
+            color: #2563ab;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.15rem;
+            flex-shrink: 0;
+        }
+
+        .mycal-title {
+            margin: 0;
+            font-size: 1rem;
+            font-weight: 700;
+            color: #0f172a;
+        }
+
+        .mycal-sub {
+            font-size: .73rem;
+            color: #94a3b8;
+        }
+
+        /* ── Controls ── */
+        .mycal-controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-left: auto;
+        }
+
+        .mycal-filter-pill {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 9px;
+            padding: 0 12px;
+            height: 36px;
+        }
+
+            .mycal-filter-pill i {
+                font-size: .72rem;
+                color: #94a3b8;
+                flex-shrink: 0;
+            }
+
+        .mycal-select {
+            border: none;
+            background: transparent;
+            font-size: .81rem;
+            color: #374151;
+            outline: none;
+            cursor: pointer;
+            max-width: 155px;
+            height: 100%;
+        }
+
+        .mycal-export-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: #dc2626;
+            color: #fff;
+            border: none;
+            border-radius: 9px;
+            padding: 0 16px;
+            height: 36px;
+            font-size: .81rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background .15s;
+            white-space: nowrap;
+        }
+
+            .mycal-export-btn:hover {
+                background: #b91c1c;
+            }
+
+            .mycal-export-btn:disabled {
+                background: #fca5a5;
+                cursor: not-allowed;
+            }
+
+        /* ── Legend ── */
+        .mycal-legend {
+            display: flex;
+            align-items: center;
+            gap: 18px;
+            flex-wrap: wrap;
+            padding: 10px 22px;
+            background: #f8fafc;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .mycal-legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: .74rem;
+            color: #64748b;
+            font-weight: 500;
+        }
+
+        .mycal-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+            flex-shrink: 0;
+        }
+
+        /* ── Calendar body ── */
+        .mycal-body {
+            padding: 20px 16px 24px;
+            background: #fff;
+        }
+
+        /* ── FullCalendar overrides ── */
+        .fc {
+            font-family: inherit;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+            .fc .fc-toolbar {
+                margin-bottom: 18px;
+                gap: 8px;
+                flex-wrap: wrap;
+            }
+
+            .fc .fc-toolbar-title {
+                font-size: .98rem !important;
+                font-weight: 700 !important;
+                color: #0f172a !important;
+            }
+
+            .fc .fc-toolbar-chunk {
+                display: flex;
+                align-items: center;
+                gap: 6px;
+            }
+
+            .fc .fc-button-group {
+                gap: 6px !important;
+            }
+
+                .fc .fc-button-group .fc-button {
+                    border-radius: 8px !important;
+                    margin: 0 !important;
+                }
+
+            .fc .fc-button-primary {
+                background: #2563ab !important;
+                border-color: #2563ab !important;
+                font-size: .78rem !important;
+                padding: 6px 14px !important;
+                border-radius: 8px !important;
+                font-weight: 600 !important;
+                box-shadow: none !important;
+                line-height: 1.4 !important;
+            }
+
+                .fc .fc-button-primary:hover {
+                    background: #1d4ed8 !important;
+                    border-color: #1d4ed8 !important;
+                }
+
+                .fc .fc-button-primary:disabled {
+                    background: #93c5fd !important;
+                    border-color: #93c5fd !important;
+                }
+
+            .fc .fc-button-active {
+                background: #1e3a8a !important;
+                border-color: #1e3a8a !important;
+            }
+
+            /* Column headers — Day names */
+            .fc .fc-col-header-cell {
+                padding: 8px 0 !important;
+            }
+
+            .fc .fc-col-header-cell-cushion {
+                font-size: .72rem !important;
+                font-weight: 700 !important;
+                color: #64748b !important;
+                text-transform: uppercase;
+                letter-spacing: .6px;
+                text-decoration: none !important;
+                padding: 6px 8px !important;
+            }
+
+            /* Day cells */
+            .fc .fc-daygrid-day {
+                border-color: #f1f5f9 !important;
+                min-height: 88px !important;
+            }
+
+            .fc .fc-daygrid-day-top {
+                padding: 4px 6px !important;
+            }
+
+            .fc .fc-daygrid-day-number {
+                font-size: .8rem !important;
+                color: #64748b !important;
+                font-weight: 500 !important;
+                text-decoration: none !important;
+                padding: 4px 6px !important;
+            }
+
+            .fc .fc-daygrid-day-events {
+                padding: 0 4px 4px !important;
+            }
+
+            .fc .fc-scrollgrid {
+                border-color: #e2e8f0 !important;
+                border-radius: 0;
+                overflow: visible;
+            }
+
+            .fc .fc-scrollgrid-section > * {
+                border-color: #e2e8f0 !important;
+            }
+
+            .fc .fc-col-header {
+                width: 100% !important;
+            }
+
+            .fc table {
+                width: 100% !important;
+            }
+
+            .fc .fc-scrollgrid-sync-table {
+                border-bottom: 0 !important;
+            }
+
+            /* Today highlight */
+            .fc .fc-day-today {
+                background: #f0f7ff !important;
+            }
+
+                .fc .fc-day-today .fc-daygrid-day-number {
+                    background: #2563ab !important;
+                    color: #fff !important;
+                    font-weight: 800 !important;
+                    border-radius: 50% !important;
+                    width: 26px !important;
+                    height: 26px !important;
+                    display: flex !important;
+                    align-items: center !important;
+                    justify-content: center !important;
+                    padding: 0 !important;
+                    line-height: 1 !important;
+                }
+
+        /* Events */
+        .fc-event {
+            border: none !important;
+            border-radius: 6px !important;
+            font-size: .71rem !important;
+            padding: 3px 7px !important;
+            cursor: pointer !important;
+            font-weight: 500 !important;
+            margin-bottom: 2px !important;
+        }
+
+            .fc-event:hover {
+                opacity: .85;
+                filter: brightness(1.06);
+            }
+
+        .fc .fc-footer-toolbar {
+            margin-top: 14px;
+            padding-top: 10px;
+            border-top: 1px solid #f1f5f9;
+        }
+
+            .fc .fc-footer-toolbar .fc-button {
+                padding: 5px 16px !important;
+                font-size: .78rem !important;
+            }
+
+        .fc-daygrid-event-dot {
+            display: none !important;
+        }
+
+        /* ── List view ── */
+        .fc .fc-list {
+            border: 1px solid #e2e8f0 !important;
+            border-radius: 10px !important;
+            overflow: hidden;
+        }
+
+        .fc .fc-list-empty {
+            padding: 40px !important;
+            text-align: center;
+            background: #f8fafc;
+            color: #94a3b8;
+            font-size: .84rem;
+        }
+
+        .fc .fc-list-day {
+            background: #f8fafc !important;
+        }
+
+        .fc .fc-list-day-cushion {
+            background: #f8fafc !important;
+            padding: 8px 16px !important;
+            font-size: .72rem !important;
+            font-weight: 700 !important;
+            color: #475569 !important;
+            text-transform: uppercase;
+            letter-spacing: .5px;
+            border-bottom: 1px solid #e2e8f0 !important;
+        }
+
+        .fc .fc-list-event {
+            border-bottom: 1px solid #f1f5f9 !important;
+        }
+
+            .fc .fc-list-event:hover td {
+                background: #f8fafc !important;
+            }
+
+            .fc .fc-list-event td {
+                padding: 10px 16px !important;
+                vertical-align: middle !important;
+            }
+
+        .fc .fc-list-event-dot {
+            border-radius: 50% !important;
+            border-width: 6px !important;
+            margin-right: 8px !important;
+            display: inline-block !important;
+        }
+
+        .fc .fc-list-event-title a {
+            text-decoration: none !important;
+            color: #1e293b !important;
+            font-size: .84rem !important;
+            font-weight: 500 !important;
+        }
+
+        .fc .fc-list-event-time {
+            color: #64748b !important;
+            font-size: .75rem !important;
+            padding-right: 16px !important;
+            white-space: nowrap !important;
+        }
+
+        /* ── Modal overlay ── */
+        .mycal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(15,23,42,.45);
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .mycal-modal {
+            background: #fff;
+            border-radius: 18px;
+            width: 350px;
+            max-width: 93vw;
+            box-shadow: 0 24px 60px rgba(0,0,0,.18);
+            overflow: hidden;
+        }
+
+        .mycal-modal-hdr {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 15px 18px;
+            color: #fff;
+            font-size: .92rem;
+            font-weight: 700;
+        }
+
+        .mycal-modal-ttl {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .mycal-modal-x {
+            background: rgba(255,255,255,.2);
+            border: none;
+            color: #fff;
+            border-radius: 7px;
+            width: 28px;
+            height: 28px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: .8rem;
+            flex-shrink: 0;
+        }
+
+            .mycal-modal-x:hover {
+                background: rgba(255,255,255,.35);
+            }
+
+        .mycal-modal-body {
+            padding: 18px;
+            display: flex;
+            flex-direction: column;
+            gap: 13px;
+        }
+
+        .mycal-modal-row {
+            display: flex;
+            align-items: flex-start;
+            gap: 11px;
+            font-size: .84rem;
+            color: #374151;
+        }
+
+            .mycal-modal-row i {
+                color: #94a3b8;
+                margin-top: 2px;
+                width: 14px;
+                flex-shrink: 0;
+            }
+
+        @@media (max-width:640px) {
+            .mycal-controls {
+                width: 100%;
+            }
+
+            .mycal-filter-pill {
+                flex: 1;
+            }
+
+            .mycal-select {
+                width: 100%;
+                max-width: none;
+            }
+
+            .mycal-body {
+                padding: 12px;
+            }
+        }
+    </style>
+}
+
+@section Scripts {
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js"></script>
+    <script>
+        (function(){
+          var calUrl      = '@Url.Action("GetCalendarTasks", "Employee")';
+          var branchSel   = document.getElementById('branchFilter');
+          var ojtSel      = document.getElementById('ojtFilter');
+          var calendarEl  = document.getElementById('calendar');
+          var calendar;
+
+          var TYPE_COLORS = { assigned:'#2563ab', completed:'#16a34a', deadline:'#7c3aed' };
+          var TYPE_ICONS  = { assigned:'fas fa-clipboard-list', completed:'fas fa-check-circle', deadline:'fas fa-calendar-times' };
+          var TYPE_LABELS = { assigned:'Assigned Task', completed:'Completed Task', deadline:'Due Date' };
+
+          function getUrl(){
+            return calUrl + '?branch=' + encodeURIComponent(branchSel.value)
+                          + '&ojtId=' + encodeURIComponent(ojtSel.value)
+                          + '&_=' + Date.now();
+          }
+
+          function evSource(info, ok, fail){
+            fetch(getUrl(), { credentials:'same-origin', cache:'no-store' })
+              .then(r => r.json()).then(ok).catch(fail);
+          }
+
+          calendar = new FullCalendar.Calendar(calendarEl, {
+            initialView: 'dayGridMonth',
+            headerToolbar: { left:'today', center:'title', right:'dayGridMonth listMonth' },
+            buttonText: { today:'Today', month:'Month', list:'List' },
+            footerToolbar: { right:'prev,next' },
+            height: 'auto',
+            nowIndicator: true,
+            events: evSource,
+            eventClick: function(info){ openModal(info.event); }
+          });
+          calendar.render();
+
+          function refetch(){
+            calendar.removeAllEventSources();
+            calendar.addEventSource(evSource);
+          }
+          branchSel.addEventListener('change', refetch);
+          ojtSel.addEventListener('change', refetch);
+
+          /* ── Modal ── */
+          function openModal(ev){
+            var p    = ev.extendedProps;
+            var type = p.type || 'assigned';
+            var hdr  = document.getElementById('calModalHdr');
+            hdr.style.background = ev.backgroundColor || TYPE_COLORS[type] || '#2563ab';
+            document.getElementById('calModalIcon').className  = TYPE_ICONS[type]  || 'fas fa-clipboard-list';
+            document.getElementById('calModalTitle').textContent = ev.title;
+            // Task type
+            var isGroup = p.taskType === 'Group';
+            document.getElementById('calModalTaskType').textContent = isGroup ? 'Group Task' : 'Individual Task';
+            document.getElementById('calModalTypeRow').querySelector('i').className = isGroup ? 'fas fa-users' : 'fas fa-user';
+            // Group members
+            var membersRow = document.getElementById('calModalMembersRow');
+            var membersList = document.getElementById('calModalMembersList');
+            membersList.innerHTML = '';
+            if(isGroup){
+              membersRow.style.display='block';
+              var taskId = ev.id.replace('task-','');
+              fetch('@Url.Action("GetGroupMembers", "Employee")'+'?taskId='+taskId+'&_='+Date.now(),{credentials:'same-origin',cache:'no-store'})
+                .then(r=>r.json()).then(function(names){
+                  names.forEach(function(n){ var s=document.createElement('span'); s.textContent='• '+n; membersList.appendChild(s); });
+                });
+            } else { membersRow.style.display='none'; }
+            // Branch
+            var branchRow = document.getElementById('calModalBranchRow');
+            if(p.branch){ branchRow.style.display='flex'; document.getElementById('calModalBranch').textContent='Branch: '+p.branch; } else { branchRow.style.display='none'; }
+            document.getElementById('calModalBy').textContent   = 'OJT: ' + (p.assignedTo || '—');
+            var d = new Date(ev.startStr + 'T00:00:00');
+            var fmt = d.toLocaleDateString('en-US',{year:'numeric',month:'short',day:'2-digit'});
+            document.getElementById('calModalDate').textContent = 'Date: ' + fmt;
+            var dueRow = document.getElementById('calModalDueRow');
+            if(p.dueDate){ dueRow.style.display='flex'; document.getElementById('calModalDue').textContent='Due: '+p.dueDate; } else { dueRow.style.display='none'; }
+            document.getElementById('calModalType').textContent = TYPE_LABELS[type] || type;
+            document.getElementById('calModal').style.display = 'flex';
+          }
+          window.closeModal = function(){ document.getElementById('calModal').style.display='none'; };
+          document.getElementById('calModal').addEventListener('click', function(e){
+            if(e.target===this) closeModal();
+          });
+
+          /* ── PDF Export ── */
+          document.getElementById('exportPdfBtn').addEventListener('click', function(){
+            var btn = this;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>Exporting...</span>';
+            html2canvas(calendarEl, { scale:2, useCORS:true, backgroundColor:'#ffffff' }).then(function(canvas){
+              var pdf   = new jspdf.jsPDF({ orientation:'landscape', unit:'mm', format:'a4' });
+              var pW    = pdf.internal.pageSize.getWidth();
+              var pH    = pdf.internal.pageSize.getHeight();
+              var ratio = canvas.width / canvas.height;
+              var iH    = Math.min(pW / ratio, pH - 24);
+              pdf.setFont('helvetica','bold');
+              pdf.setFontSize(12); pdf.setTextColor(15,23,42);
+              pdf.text('My Calendar — Employee Task Schedule', 14, 11);
+              pdf.setFont('helvetica','normal');
+              pdf.setFontSize(8); pdf.setTextColor(100,116,139);
+              pdf.text('Exported: ' + new Date().toLocaleDateString('en-PH',{year:'numeric',month:'long',day:'numeric'}), 14, 17);
+              pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 5, 22, pW-10, iH);
+              pdf.save('employee-calendar.pdf');
+              btn.disabled = false;
+              btn.innerHTML = '<i class="fas fa-file-pdf"></i><span>Export PDF</span>';
+            });
+          });
+        })();
+    </script>
+}

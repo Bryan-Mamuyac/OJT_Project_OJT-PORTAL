@@ -1,0 +1,159 @@
+﻿@model List<TaskSubmission>
+@using ITPMS_OJT.Models
+@using System.Linq
+@{
+    ViewData["Title"] = "Pending Submissions";
+}
+
+<div class="dashboard">
+    <div class="section-card">
+        <div class="section-header">
+            <h3><i class="fas fa-clock"></i> Pending Submissions for Review</h3>
+            @if (Model.Any())
+            {
+                <span class="badge-count">@Model.Count pending</span>
+            }
+        </div>
+        <div class="section-body">
+            @if (!Model.Any())
+            {
+                <div class="empty-state">
+                    <i class="fas fa-check-double"></i>
+                    <p>No pending submissions — you're all caught up!</p>
+                </div>
+            }
+            else
+            {
+                <div class="submission-list">
+                    @foreach (var sub in Model)
+                    {
+                        <div class="submission-card">
+                            <div class="submission-header">
+                                <div>
+                                    <h4>@sub.TaskTitle</h4>
+                                    <span class="sub-meta">
+                                        <i class="fas fa-user-graduate"></i> @sub.OJTName
+                                        &nbsp;&bull;&nbsp;
+                                        <i class="fas fa-calendar"></i> @sub.SubmittedAt.ToString("MMM dd, yyyy h:mm tt")
+                                    </span>
+                                </div>
+                                <span class="status-badge status-submitted">Submitted</span>
+                            </div>
+
+                            <div class="submission-body">
+                                <div class="sub-detail">
+                                    <strong>Submission Title:</strong> @sub.SubmissionTitle
+                                </div>
+                                <div class="sub-detail">
+                                    <strong>Description:</strong>
+                                    <p>@sub.SubmissionDescription</p>
+                                </div>
+                                @{
+                                    var _sf = sub.GetSubmittedFiles();
+                                }
+                                @if (_sf.Any())
+                                {
+                                    <div class="sub-detail">
+                                        <strong>Attached Files:</strong>
+                                        <div class="file-chips-col" style="margin-top:6px;">
+                                            @foreach (var sf in _sf)
+                                            {
+                                                var sfx = System.IO.Path.GetExtension(sf.Name).ToLower();
+                                                string sfi;
+                                                if (sfx == ".png" || sfx == ".jpg" || sfx == ".jpeg") sfi = "fas fa-image";
+                                                else if (sfx == ".pbix") sfi = "fas fa-chart-bar";
+                                                else if (sfx == ".pdf") sfi = "fas fa-file-pdf";
+                                                else if (sfx == ".xlsx" || sfx == ".xls") sfi = "fas fa-file-excel";
+                                                else if (sfx == ".docx" || sfx == ".doc") sfi = "fas fa-file-word";
+                                                else if (sfx == ".pptx" || sfx == ".ppt") sfi = "fas fa-file-powerpoint";
+                                                else if (sfx == ".zip") sfi = "fas fa-file-archive";
+                                                else sfi = "fas fa-file";
+                                                <a href="@sf.Path" class="file-chip" target="_blank" title="@sf.Name">
+                                                    <i class="@sfi"></i>
+                                                    <span>@sf.Name</span>
+                                                </a>
+                                            }
+                                        </div>
+                                    </div>
+                                }
+                                @if (!string.IsNullOrEmpty(sub.LinkUrl))
+                                {
+                                    <div class="sub-detail">
+                                        <strong>Submitted Link:</strong>
+                                        <a href="@sub.LinkUrl" class="file-link" target="_blank">
+                                            <i class="fas fa-external-link-alt"></i> @sub.LinkUrl
+                                        </a>
+                                    </div>
+                                }
+                            </div>
+
+                            <div class="submission-actions">
+                                <form asp-action="RejectSubmission" method="post" style="display:inline;"
+                                      onsubmit="return confirm('Request resubmission? The OJT will be notified to redo this task.')">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="submissionId" value="@sub.SubmissionId" />
+                                    <button type="submit" class="btn btn-resubmit">
+                                        <i class="fas fa-redo"></i> Resubmit
+                                    </button>
+                                </form>
+                                <form asp-action="ApproveSubmission" method="post" style="display:inline;"
+                                      onsubmit="return confirm('Approve this submission?')">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="submissionId" value="@sub.SubmissionId" />
+                                    <button type="submit" class="btn btn-success">
+                                        <i class="fas fa-check"></i> Approve
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@section Styles {
+    <style>
+        .file-chips-col {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .file-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 7px 13px;
+            border-radius: 8px;
+            background: #f0f7ff;
+            border: 1px solid #bfdbfe;
+            color: #1d4ed8;
+            font-size: .82rem;
+            font-weight: 500;
+            text-decoration: none;
+            transition: background .15s,border-color .15s;
+            width: fit-content;
+            max-width: 100%;
+        }
+
+            .file-chip:hover {
+                background: #dbeafe;
+                border-color: #93c5fd;
+                color: #1e40af;
+            }
+
+            .file-chip i {
+                font-size: .85rem;
+                flex-shrink: 0;
+            }
+
+            .file-chip span {
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+                max-width: 320px;
+            }
+    </style>
+}

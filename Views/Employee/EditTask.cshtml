@@ -1,0 +1,881 @@
+﻿@model CreateTaskViewModel
+@using System.Text.Json
+@{
+    ViewData["Title"] = "Edit Task";
+    var ojts = ViewBag.OJTs as List<ITPMS_OJT.Models.User> ?? new();
+    int taskId = ViewBag.TaskId;
+
+    // Existing attached files
+    string? exPath = ViewBag.ExistingFilePath as string;
+    string? exName = ViewBag.ExistingFileName as string;
+    var existingFiles = new List<(string Path, string Name)>();
+    if (!string.IsNullOrEmpty(exPath))
+    {
+        if (exPath.TrimStart().StartsWith("["))
+        {
+            try
+            {
+                var paths = JsonSerializer.Deserialize<List<string>>(exPath) ?? new();
+                var names = JsonSerializer.Deserialize<List<string>>(exName ?? "[]") ?? new();
+                for (int i = 0; i < paths.Count; i++)
+                    existingFiles.Add((paths[i], i < names.Count ? names[i] : System.IO.Path.GetFileName(paths[i])));
+            }
+            catch { }
+        }
+        else { existingFiles.Add((exPath, exName ?? System.IO.Path.GetFileName(exPath))); }
+    }
+}
+
+<div class="form-page">
+    <div class="form-card">
+        <div class="form-card-header">
+            <h3><i class="fas fa-pen"></i> Edit Task</h3>
+            <p>Update the task details below. Only tasks that haven't been submitted yet can be edited.</p>
+        </div>
+
+        <form asp-action="EditTask" asp-route-id="@taskId" method="post" enctype="multipart/form-data" id="editTaskForm">
+            @Html.AntiForgeryToken()
+            <div asp-validation-summary="ModelOnly" class="alert alert-danger"></div>
+
+            <!-- TASK TYPE -->
+            <div class="ct-section">
+                <span class="ct-label"><i class="fas fa-layer-group"></i> Task Type</span>
+                <div class="task-type-grid">
+                    <div class="type-card @(Model.TaskType == "Individual" ? "active" : "")" id="cardIndividual" onclick="selectType('Individual')">
+                        <input type="radio" name="TaskType" value="Individual" id="radioIndividual" @(Model.TaskType == "Individual" ? "checked" : "") />
+                        <div class="tc-left">
+                            <div class="tc-icon-wrap"><i class="fas fa-user tc-icon"></i></div>
+                            <div class="tc-text">
+                                <strong>Individual</strong>
+                                <small>Assign to one OJT trainee</small>
+                            </div>
+                        </div>
+                        <i class="fas fa-check-circle tc-check"></i>
+                    </div>
+                    <div class="type-card @(Model.TaskType == "Group" ? "active" : "")" id="cardGroup" onclick="selectType('Group')">
+                        <input type="radio" name="TaskType" value="Group" id="radioGroup" @(Model.TaskType == "Group" ? "checked" : "") />
+                        <div class="tc-left">
+                            <div class="tc-icon-wrap"><i class="fas fa-users tc-icon"></i></div>
+                            <div class="tc-text">
+                                <strong>Group</strong>
+                                <small>Send to all OJTs in your department</small>
+                            </div>
+                        </div>
+                        <i class="fas fa-check-circle tc-check"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ASSIGN TO -->
+            <div id="assignToSection" class="ct-section" style="display:@(Model.TaskType == "Group" ? "none" : "block")">
+                <label class="ct-label" asp-for="AssignedToUserId">
+                    <i class="fas fa-user-graduate"></i> Assign To
+                </label>
+                <select name="AssignedToUserId" class="form-control" id="assignToSelect">
+                    <option value="">-- Select OJT Trainee --</option>
+                    @foreach (var ojt in ojts)
+                    {
+                        if (Model.AssignedToUserId == ojt.UserId)
+                        {
+                            <option value="@ojt.UserId" selected="selected">@ojt.FullName (@ojt.Username)</option>
+                        }
+                        else
+                        {
+                            <option value="@ojt.UserId">@ojt.FullName (@ojt.Username)</option>
+                        }
+                    }
+                </select>
+                <span asp-validation-for="AssignedToUserId" class="field-error"></span>
+            </div>
+
+            <!-- GROUP NOTICE -->
+            <div id="groupNotice" class="group-notice ct-section-flat" style="display:@(Model.TaskType == "Group" ? "flex" : "none")">
+                <i class="fas fa-info-circle"></i>
+                <div>
+                    <strong>Group Task</strong> — This task will be sent to
+                    <strong>all @ojts.Count OJT trainee(s)</strong> in your department.
+                </div>
+            </div>
+
+            <!-- TITLE -->
+            <div class="ct-section">
+                <label class="ct-label" asp-for="Title"><i class="fas fa-heading"></i> Task Title</label>
+                <input asp-for="Title" class="form-control" placeholder="Enter task title" />
+                <span asp-validation-for="Title" class="field-error"></span>
+            </div>
+
+            <!-- DESCRIPTION -->
+            <div class="ct-section">
+                <label class="ct-label" asp-for="Description"><i class="fas fa-align-left"></i> Description</label>
+                <textarea asp-for="Description" class="form-control" rows="4"
+                          placeholder="Describe the task requirements..."></textarea>
+                <span asp-validation-for="Description" class="field-error"></span>
+            </div>
+
+            <!-- DEADLINE -->
+            <div class="ct-section">
+                <span class="ct-label">
+                    <i class="fas fa-calendar-alt"></i> Deadline <span class="required-star">*</span>
+                </span>
+                <div class="deadline-row">
+                    <div class="dl-col dl-col-date">
+                        <span class="dl-sub">Date</span>
+                        <input type="date" name="DeadlineDate" class="form-control"
+                               id="deadlineDate"
+                               min="@DateTime.Now.ToString("yyyy-MM-dd")"
+                               onchange="updatePreview()" />
+                    </div>
+                    <div class="dl-col dl-col-ampm">
+                        <span class="dl-sub">Period</span>
+                        <div class="ampm-toggle">
+                            <button type="button" class="ampm-btn active" id="btnAM" onclick="setAmPm('AM')">AM</button>
+                            <button type="button" class="ampm-btn" id="btnPM" onclick="setAmPm('PM')">PM</button>
+                        </div>
+                        <input type="hidden" name="DeadlineAmPm" id="deadlineAmPm" value="AM" />
+                    </div>
+                    <div class="dl-col dl-col-time">
+                        <span class="dl-sub">Time</span>
+                        <select name="DeadlineTime" class="form-control" id="deadlineTime" onchange="updatePreview()">
+                            <option value="">-- Select --</option>
+                        </select>
+                    </div>
+                </div>
+                <!-- Inline validation messages matching field-error style -->
+                <span id="deadlineDateError" class="field-error" style="display:none;">Deadline date is required.</span>
+                <span id="deadlineTimeError" class="field-error" style="display:none;">Deadline time is required.</span>
+
+                <!-- Server-side fallback -->
+                <span asp-validation-for="DeadlineDate" class="field-error"></span>
+                <span asp-validation-for="DeadlineTime" class="field-error"></span>
+
+                <div id="deadlinePreview" class="deadline-preview" style="display:none;">
+                    <i class="fas fa-clock"></i>
+                    <span id="deadlinePreviewText"></span>
+                </div>
+            </div>
+
+            <!-- ===== FILES ===== -->
+            <div class="ct-section">
+                <label class="ct-label">
+                    <i class="fas fa-file-upload"></i> Attached Files
+                    <span class="optional">(Optional — up to 5 files)</span>
+                </label>
+
+                @* ── Existing files ── *@
+                <input type="hidden" name="ClearFiles" id="clearFilesInput" value="false" />
+                @if (existingFiles.Any())
+                {
+                    <div class="ef-section" id="existingSection">
+                        <div class="ef-label"><i class="fas fa-paperclip"></i> Current files — click × to remove</div>
+                        <div class="ef-chips" id="existingChips">
+                            @foreach (var ef in existingFiles)
+                            {
+                                var efExt = System.IO.Path.GetExtension(ef.Name).ToLower();
+                                var efIcon = new[] { ".png", ".jpg", ".jpeg" }.Contains(efExt) ? "fas fa-image" :
+                                efExt == ".pbix" ? "fas fa-chart-bar" :
+                                efExt == ".pdf" ? "fas fa-file-pdf" :
+                                new[] { ".xlsx", ".xls" }.Contains(efExt) ? "fas fa-file-excel" :
+                                new[] { ".docx", ".doc" }.Contains(efExt) ? "fas fa-file-word" :
+                                new[] { ".pptx", ".ppt" }.Contains(efExt) ? "fas fa-file-powerpoint" : "fas fa-file";
+                                <div class="ef-chip">
+                                    <i class="@efIcon"></i>
+                                    <span class="ef-name" title="@ef.Name">@ef.Name</span>
+                                    <button type="button" class="ef-remove" onclick="removeExisting(this)" title="Remove this file">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+                            }
+                        </div>
+                        <div class="ef-cleared" id="efCleared" style="display:none;">
+                            <i class="fas fa-info-circle"></i> All current files will be removed on save.
+                            <button type="button" class="ef-undo" onclick="undoClear()">Undo</button>
+                        </div>
+                    </div>
+                }
+
+                @* ── Upload new files ── *@
+                <div class="mfu-area @(existingFiles.Any() ? "mfu-area-compact" : "")" id="fileArea" style="margin-top:@(existingFiles.Any() ? "10px" : "0")">
+                    <input name="AttachedFiles" type="file" id="fileInput"
+                           accept=".pdf,.xlsx,.xls,.docx,.doc,.pptx,.ppt,.png,.jpg,.jpeg,.pbix,.zip"
+                           multiple style="display:none" />
+                    <div class="mfu-prompt" id="filePrompt" onclick="document.getElementById('fileInput').click()">
+                        <i class="fas fa-cloud-upload-alt"></i>
+                        <p>@(existingFiles.Any() ? "Add more files" : "Drag & drop or") <strong>click to browse</strong></p>
+                        <small>PDF · Excel · Word · PowerPoint · PNG · JPG · Power BI · ZIP</small>
+                    </div>
+                    <div class="mfu-list" id="fileList"></div>
+                    <div class="mfu-add" id="mfuAddBtn" style="display:none" onclick="document.getElementById('fileInput').click()">
+                        <i class="fas fa-plus"></i> Add another file
+                    </div>
+                </div>
+                <span class="field-error" id="fileError"></span>
+            </div>
+
+            <!-- ACTIONS -->
+            <div class="ct-actions">
+                <a asp-action="TasksGiven" class="btn btn-outline">
+                    <i class="fas fa-arrow-left"></i> Cancel
+                </a>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save"></i> Save Changes
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Styles {
+    <style>
+        .ct-section {
+            padding: 16px 24px;
+        }
+
+        .ct-section-flat {
+            padding: 0 24px 16px;
+        }
+
+        .ct-label {
+            display: block;
+            font-size: .78rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .6px;
+            color: #475569;
+            margin-bottom: 8px;
+        }
+
+            .ct-label i {
+                margin-right: 5px;
+                color: #2563ab;
+            }
+
+        .ct-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            padding: 16px 24px;
+            border-top: 1px solid #e2e8f0;
+            background: #f8fafc;
+        }
+
+        .optional {
+            font-weight: 400;
+            color: #94a3b8;
+            text-transform: none;
+            letter-spacing: 0;
+            font-size: .75rem;
+            margin-left: 4px;
+        }
+
+        .required-star {
+            color: #dc2626;
+            font-weight: 700;
+            margin-left: 2px;
+        }
+
+        /* Deadline validation */
+        .deadline-error {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            margin-top: 8px;
+            padding: 9px 14px;
+            background: #fff1f2;
+            border: 1.5px solid #fca5a5;
+            border-radius: 8px;
+            font-size: .85rem;
+            color: #dc2626;
+            font-weight: 600;
+        }
+
+            .deadline-error i {
+                font-size: .9rem;
+                flex-shrink: 0;
+            }
+
+        .input-error {
+            border-color: #f87171 !important;
+            box-shadow: 0 0 0 3px rgba(248,113,113,.18) !important;
+            background: #fff8f8 !important;
+        }
+
+        .task-type-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .type-card {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 16px;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            cursor: pointer;
+            background: #f8fafc;
+            transition: border-color .2s,background .2s,box-shadow .2s;
+            user-select: none;
+        }
+
+            .type-card:hover {
+                border-color: #93c5fd;
+                background: #f0f7ff;
+            }
+
+            .type-card.active {
+                border-color: #2563ab;
+                background: #eff6ff;
+                box-shadow: 0 0 0 3px rgba(37,99,171,.13);
+            }
+
+            .type-card input[type=radio] {
+                display: none;
+            }
+
+        .tc-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex: 1;
+        }
+
+        .tc-icon-wrap {
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            background: #dbeafe;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            transition: background .2s;
+        }
+
+        .type-card.active .tc-icon-wrap {
+            background: #2563ab;
+        }
+
+        .tc-icon {
+            font-size: 1rem;
+            color: #2563ab;
+            transition: color .2s;
+        }
+
+        .type-card.active .tc-icon {
+            color: #fff;
+        }
+
+        .tc-text {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+            .tc-text strong {
+                font-size: .9rem;
+                color: #0f172a;
+            }
+
+            .tc-text small {
+                font-size: .75rem;
+                color: #64748b;
+            }
+
+        .tc-check {
+            font-size: 1rem;
+            color: #2563ab;
+            opacity: 0;
+            transition: opacity .2s;
+            flex-shrink: 0;
+        }
+
+        .type-card.active .tc-check {
+            opacity: 1;
+        }
+
+        .group-notice {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+            border-radius: 8px;
+            padding: 12px 14px;
+            font-size: .875rem;
+            color: #1e40af;
+            margin: 0 24px 16px;
+        }
+
+        .deadline-row {
+            display: flex;
+            gap: 10px;
+            align-items: flex-end;
+            flex-wrap: wrap;
+        }
+
+        .dl-col {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .dl-col-date {
+            flex: 0 0 175px;
+        }
+
+        .dl-col-ampm {
+            flex: 0 0 auto;
+        }
+
+        .dl-col-time {
+            flex: 1;
+            min-width: 130px;
+        }
+
+        .dl-sub {
+            font-size: .7rem;
+            font-weight: 700;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: .5px;
+        }
+
+        .ampm-toggle {
+            display: flex;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            overflow: hidden;
+            height: 42px;
+        }
+
+        .ampm-btn {
+            padding: 0 20px;
+            border: none;
+            background: #f8fafc;
+            cursor: pointer;
+            font-size: .875rem;
+            font-weight: 700;
+            color: #64748b;
+            transition: background .15s,color .15s;
+            line-height: 1;
+        }
+
+            .ampm-btn + .ampm-btn {
+                border-left: 1px solid #cbd5e1;
+            }
+
+            .ampm-btn.active {
+                background: #1a3a5c;
+                color: #fff;
+            }
+
+            .ampm-btn:hover:not(.active) {
+                background: #e2e8f0;
+                color: #1a3a5c;
+            }
+
+        .deadline-preview {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 10px;
+            padding: 8px 14px;
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            border-radius: 8px;
+            font-size: .875rem;
+            color: #15803d;
+            font-weight: 600;
+        }
+
+        .field-error {
+            display: block;
+            color: #dc2626;
+            font-size: .82rem;
+            font-weight: 500;
+            margin-top: 5px;
+        }
+
+        .input-error {
+            border-color: #f87171 !important;
+            box-shadow: 0 0 0 3px rgba(248,113,113,.18) !important;
+            background: #fff8f8 !important;
+        }
+
+        /* ── Existing files ── */
+        .ef-section {
+            margin-bottom: 4px;
+        }
+
+        .ef-label {
+            font-size: .72rem;
+            font-weight: 600;
+            color: #64748b;
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .ef-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .ef-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 10px;
+            background: #f0f7ff;
+            border: 1px solid #bfdbfe;
+            border-radius: 8px;
+            font-size: .8rem;
+            color: #1d4ed8;
+        }
+
+            .ef-chip i {
+                font-size: .85rem;
+                flex-shrink: 0;
+            }
+
+        .ef-name {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            max-width: 220px;
+        }
+
+        .ef-remove {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: #94a3b8;
+            font-size: .85rem;
+            padding: 1px 3px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            transition: color .15s,background .15s;
+            flex-shrink: 0;
+        }
+
+            .ef-remove:hover {
+                color: #dc2626;
+                background: #fee2e2;
+            }
+
+        .ef-cleared {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 8px;
+            padding: 7px 12px;
+            background: #fff7ed;
+            border: 1px solid #fed7aa;
+            border-radius: 8px;
+            font-size: .8rem;
+            color: #c2410c;
+            font-weight: 500;
+        }
+
+        .ef-undo {
+            margin-left: auto;
+            background: none;
+            border: 1px solid #c2410c;
+            color: #c2410c;
+            border-radius: 6px;
+            padding: 2px 10px;
+            font-size: .75rem;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+            .ef-undo:hover {
+                background: #fff7ed;
+            }
+
+        /* ── Multi-file upload ── */
+        .mfu-area {
+            border: 2px dashed #cbd5e1;
+            border-radius: 12px;
+            background: #f8fafc;
+            transition: border-color .2s;
+        }
+
+        .mfu-area-compact .mfu-prompt {
+            padding: 14px 20px;
+        }
+
+        .mfu-area.drag-over {
+            border-color: #2563ab;
+            background: #eff6ff;
+        }
+
+        .mfu-prompt {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 28px 20px;
+            cursor: pointer;
+            text-align: center;
+            gap: 4px;
+        }
+
+            .mfu-prompt i {
+                font-size: 2rem;
+                color: #93c5fd;
+                margin-bottom: 4px;
+            }
+
+            .mfu-prompt p {
+                margin: 0;
+                font-size: .875rem;
+                color: #475569;
+            }
+
+            .mfu-prompt small {
+                color: #94a3b8;
+                font-size: .72rem;
+            }
+
+        .mfu-list {
+            padding: 4px 10px 0;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .mfu-chip {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-size: .82rem;
+            color: #334155;
+        }
+
+            .mfu-chip i.mfu-icon {
+                font-size: .95rem;
+                flex-shrink: 0;
+            }
+
+            .mfu-chip .mfu-name {
+                flex: 1;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+
+            .mfu-chip .mfu-size {
+                font-size: .72rem;
+                color: #94a3b8;
+                flex-shrink: 0;
+            }
+
+            .mfu-chip .mfu-remove {
+                background: none;
+                border: none;
+                cursor: pointer;
+                color: #94a3b8;
+                font-size: .9rem;
+                padding: 2px 4px;
+                border-radius: 4px;
+                transition: color .15s,background .15s;
+                flex-shrink: 0;
+                display: flex;
+                align-items: center;
+            }
+
+                .mfu-chip .mfu-remove:hover {
+                    color: #dc2626;
+                    background: #fee2e2;
+                }
+
+        .mfu-add {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 10px 14px;
+            cursor: pointer;
+            font-size: .8rem;
+            font-weight: 600;
+            color: #2563ab;
+            border-top: 1px dashed #e2e8f0;
+            margin-top: 4px;
+            transition: background .15s;
+            border-radius: 0 0 10px 10px;
+        }
+
+            .mfu-add:hover {
+                background: #eff6ff;
+            }
+
+            .mfu-add i {
+                font-size: .75rem;
+            }
+
+        @@media (max-width:560px) {
+            .task-type-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .deadline-row {
+                flex-direction: column;
+            }
+
+            .dl-col-date, .dl-col-time {
+                flex: none;
+                width: 100%;
+            }
+        }
+    </style>
+}
+
+@section Scripts {
+    <script>
+        const AM_SLOTS = [['08:00','8:00 AM'],['08:30','8:30 AM'],['09:00','9:00 AM'],['09:30','9:30 AM'],['10:00','10:00 AM'],['10:30','10:30 AM'],['11:00','11:00 AM'],['11:30','11:30 AM'],['12:00','12:00 PM']];
+        const PM_SLOTS = [['01:00','1:00 PM'],['01:30','1:30 PM'],['02:00','2:00 PM'],['02:30','2:30 PM'],['03:00','3:00 PM'],['03:30','3:30 PM'],['04:00','4:00 PM'],['04:30','4:30 PM'],['05:00','5:00 PM']];
+
+        function populateTimes() {
+            var ampm  = document.getElementById('deadlineAmPm').value;
+            var sel   = document.getElementById('deadlineTime');
+            var slots = ampm === 'AM' ? AM_SLOTS : PM_SLOTS;
+            sel.innerHTML = '<option value="">-- Select time --</option>';
+            slots.forEach(function(s) { var o=document.createElement('option'); o.value=s[0]; o.textContent=s[1]; sel.appendChild(o); });
+            updatePreview();
+        }
+        function setAmPm(val) {
+            document.getElementById('deadlineAmPm').value = val;
+            document.getElementById('btnAM').classList.toggle('active', val==='AM');
+            document.getElementById('btnPM').classList.toggle('active', val==='PM');
+            populateTimes();
+        }
+        function updatePreview() {
+            var date=document.getElementById('deadlineDate').value;
+            var time=document.getElementById('deadlineTime').value;
+            var ampm=document.getElementById('deadlineAmPm').value;
+            var prev=document.getElementById('deadlinePreview');
+            if(date && time){ var parts=date.split('-'); var months=['January','February','March','April','May','June','July','August','September','October','November','December']; var tp=time.split(':'); document.getElementById('deadlinePreviewText').textContent=months[parseInt(parts[1])-1]+' '+parseInt(parts[2])+', '+parts[0]+'  —  '+parseInt(tp[0])+':'+tp[1]+' '+ampm+''; prev.style.display='flex'; } else { prev.style.display='none'; }
+        }
+        function selectType(type) {
+            var isGroup=type==='Group';
+            document.getElementById('cardIndividual').classList.toggle('active',!isGroup);
+            document.getElementById('cardGroup').classList.toggle('active',isGroup);
+            document.getElementById('radioIndividual').checked=!isGroup;
+            document.getElementById('radioGroup').checked=isGroup;
+            document.getElementById('assignToSection').style.display=isGroup?'none':'block';
+            document.getElementById('groupNotice').style.display=isGroup?'flex':'none';
+            if(isGroup) document.getElementById('assignToSelect').value='';
+        }
+
+        // ── Deadline required validation ──
+        document.getElementById('editTaskForm').addEventListener('submit', function(e) {
+            var date = document.getElementById('deadlineDate').value;
+            var time = document.getElementById('deadlineTime').value;
+            var dateErr = document.getElementById('deadlineDateError');
+            var timeErr = document.getElementById('deadlineTimeError');
+            var hasError = false;
+            if (!date) {
+                dateErr.style.display = 'block';
+                document.getElementById('deadlineDate').classList.add('input-error');
+                hasError = true;
+            } else {
+                dateErr.style.display = 'none';
+                document.getElementById('deadlineDate').classList.remove('input-error');
+            }
+            if (!time) {
+                timeErr.style.display = 'block';
+                document.getElementById('deadlineTime').classList.add('input-error');
+                hasError = true;
+            } else {
+                timeErr.style.display = 'none';
+                document.getElementById('deadlineTime').classList.remove('input-error');
+            }
+            if (hasError) {
+                e.preventDefault();
+                document.getElementById('deadlineDate').scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        });
+        document.getElementById('deadlineDate').addEventListener('change', function() {
+            if (this.value) { this.classList.remove('input-error'); document.getElementById('deadlineDateError').style.display = 'none'; }
+        });
+        document.getElementById('deadlineTime').addEventListener('change', function() {
+            if (this.value) { this.classList.remove('input-error'); document.getElementById('deadlineTimeError').style.display = 'none'; }
+        });
+
+        populateTimes();
+
+        // ── Existing file removal ──
+        var existingRemoved = false;
+        function removeExisting(btn) {
+            btn.closest('.ef-chip').remove();
+            var chips = document.querySelectorAll('#existingChips .ef-chip');
+            if (chips.length === 0) {
+                document.getElementById('clearFilesInput').value = 'true';
+                document.getElementById('existingChips').style.display = 'none';
+                var cleared = document.getElementById('efCleared');
+                if (cleared) cleared.style.display = 'flex';
+                existingRemoved = true;
+            }
+        }
+        function undoClear() {
+            location.reload(); // simplest undo — reload page to restore original state
+        }
+
+        // ── New file upload ──
+        var mfuFiles = []; var MFU_MAX = 5;
+        var MFU_ALLOWED = ['.pdf','.xlsx','.xls','.docx','.doc','.pptx','.ppt','.png','.jpg','.jpeg','.pbix','.zip'];
+        function mfuIcon(n) {
+            var e = n.substring(n.lastIndexOf('.')).toLowerCase();
+            if (['.png','.jpg','.jpeg'].includes(e)) return 'fas fa-image';
+            if (e==='.pbix')  return 'fas fa-chart-bar';
+            if (e==='.pdf')   return 'fas fa-file-pdf';
+            if (['.xlsx','.xls'].includes(e)) return 'fas fa-file-excel';
+            if (['.docx','.doc'].includes(e)) return 'fas fa-file-word';
+            if (['.pptx','.ppt'].includes(e)) return 'fas fa-file-powerpoint';
+            return 'fas fa-file';
+        }
+        function mfuSize(b) { if(b<1024)return b+' B'; if(b<1048576)return(b/1024).toFixed(1)+' KB'; return(b/1048576).toFixed(1)+' MB'; }
+        function mfuRender() {
+            var list=document.getElementById('fileList'),prompt=document.getElementById('filePrompt'),addBtn=document.getElementById('mfuAddBtn'),err=document.getElementById('fileError');
+            list.innerHTML='';
+            if (mfuFiles.length===0) { prompt.style.display='flex'; addBtn.style.display='none'; }
+            else {
+                prompt.style.display='none';
+                addBtn.style.display = mfuFiles.length < MFU_MAX ? 'flex' : 'none';
+                mfuFiles.forEach(function(f,i) {
+                    var c=document.createElement('div'); c.className='mfu-chip';
+                    c.innerHTML='<i class="mfu-icon '+mfuIcon(f.name)+'"></i><span class="mfu-name" title="'+f.name+'">'+f.name+'</span><span class="mfu-size">'+mfuSize(f.size)+'</span><button type="button" class="mfu-remove" onclick="mfuRemove('+i+')" title="Remove"><i class="fas fa-times"></i></button>';
+                    list.appendChild(c);
+                });
+            }
+            err.textContent=''; mfuSync();
+        }
+        function mfuSync() { var dt=new DataTransfer(); mfuFiles.forEach(function(f){dt.items.add(f);}); document.getElementById('fileInput').files=dt.files; }
+        function mfuAdd(fl) {
+            var err=document.getElementById('fileError'); var arr=Array.from(fl);
+            for(var i=0;i<arr.length;i++){
+                var f=arr[i],ext=f.name.substring(f.name.lastIndexOf('.')).toLowerCase();
+                if(!MFU_ALLOWED.includes(ext)){err.textContent='"'+f.name+'" is not an allowed type.';continue;}
+                if(mfuFiles.length>=MFU_MAX){err.textContent='Maximum '+MFU_MAX+' files allowed.';break;}
+                if(mfuFiles.some(function(x){return x.name===f.name&&x.size===f.size;}))continue;
+                mfuFiles.push(f);
+            }
+            document.getElementById('fileInput').value=''; mfuRender();
+        }
+        function mfuRemove(i) { mfuFiles.splice(i,1); mfuRender(); }
+        document.getElementById('fileInput').addEventListener('change', function(){ if(this.files.length) mfuAdd(this.files); });
+        var area=document.getElementById('fileArea');
+        area.addEventListener('dragover',function(e){e.preventDefault();area.classList.add('drag-over');});
+        area.addEventListener('dragleave',function(){area.classList.remove('drag-over');});
+        area.addEventListener('drop',function(e){e.preventDefault();area.classList.remove('drag-over');if(e.dataTransfer.files.length)mfuAdd(e.dataTransfer.files);});
+
+    </script>
+}

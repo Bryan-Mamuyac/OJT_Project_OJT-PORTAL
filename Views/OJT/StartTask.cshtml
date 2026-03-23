@@ -1,0 +1,261 @@
+﻿@model TaskProgressViewModel
+@{
+    ViewData["Title"] = Model.CurrentWorkStatus == null ? "Start Task" : "Continue Task";
+    bool hasStarted = Model.CurrentWorkStatus != null;
+}
+
+<div class="form-page">
+    <div class="form-card">
+
+        <!-- Header -->
+        <div class="form-card-header" style="background:linear-gradient(135deg,@(hasStarted ? "#1e40af,#2563ab" : "#065f46,#059669"));">
+            <h3>
+                <i class="fas fa-@(hasStarted ? "play" : "rocket")"></i>
+                @(hasStarted ? "Continue Task" : "Start Task")
+            </h3>
+            <p>@Model.TaskTitle</p>
+        </div>
+
+        <!-- Task info strip -->
+        <div class="task-info-strip">
+            <span><i class="fas fa-user-tie"></i> @Model.AssignedByName</span>
+            <span><i class="fas fa-calendar-times"></i> Due: @Model.DeadlineDisplay</span>
+            @if (hasStarted)
+            {
+                <span class="current-ws ws-@Model.CurrentWorkStatus!.ToLower().Replace(" ", "-")">
+                    <i class="fas fa-circle" style="font-size:.5rem;"></i>
+                    Current: <strong>@Model.CurrentWorkStatus</strong>
+                </span>
+            }
+        </div>
+
+        @if (TempData["SuccessMessage"] != null)
+        {
+            <div class="alert alert-success" style="margin:16px 24px 0;">
+                <i class="fas fa-check-circle"></i> @TempData["SuccessMessage"]
+            </div>
+        }
+
+        <!-- Progress Update Form -->
+        <form asp-action="StartTask" method="post">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="TaskId" value="@Model.TaskId" />
+            <div asp-validation-summary="ModelOnly" class="alert alert-danger" style="margin:16px 24px 0;"></div>
+
+            <!-- WORK STATUS DROPDOWN -->
+            <div class="ct-section">
+                <label class="ct-label">
+                    <i class="fas fa-tasks"></i>
+                    @(hasStarted ? "Update Status" : "Set Your Work Status")
+                    <span class="required-star">*</span>
+                </label>
+                <p class="field-hint" style="margin-bottom:10px;">
+                    @(hasStarted ? "Select your current work state." : "Choose a status to begin tracking your progress on this task.")
+                </p>
+
+                <div class="progress-status-grid">
+
+                    <div class="ps-card" id="cardInProgress" onclick="selectStatus('In Progress')">
+                        <input type="hidden" />
+                        <div class="ps-icon" style="background:#dcfce7;color:#16a34a;">
+                            <i class="fas fa-play-circle"></i>
+                        </div>
+                        <div class="ps-text">
+                            <strong>In Progress</strong>
+                            <small>Actively working on the task</small>
+                        </div>
+                        <i class="fas fa-check-circle ps-check"></i>
+                    </div>
+
+                    <div class="ps-card" id="cardOnHold" onclick="selectStatus('On Hold')">
+                        <div class="ps-icon" style="background:#fef3c7;color:#d97706;">
+                            <i class="fas fa-pause-circle"></i>
+                        </div>
+                        <div class="ps-text">
+                            <strong>On Hold</strong>
+                            <small>Temporarily paused, will resume</small>
+                        </div>
+                        <i class="fas fa-check-circle ps-check"></i>
+                    </div>
+
+                    <div class="ps-card" id="cardOnBreak" onclick="selectStatus('On Break')">
+                        <div class="ps-icon" style="background:#dbeafe;color:#2563ab;">
+                            <i class="fas fa-coffee"></i>
+                        </div>
+                        <div class="ps-text">
+                            <strong>On Break</strong>
+                            <small>Taking a short break</small>
+                        </div>
+                        <i class="fas fa-check-circle ps-check"></i>
+                    </div>
+
+                    <div class="ps-card" id="cardNatureCall" onclick="selectStatus('Nature Call')">
+                        <div class="ps-icon" style="background:#d1fae5;color:#059669;">
+                            <i class="fas fa-leaf"></i>
+                        </div>
+                        <div class="ps-text">
+                            <strong>Nature Call</strong>
+                            <small>Briefly away, back soon</small>
+                        </div>
+                        <i class="fas fa-check-circle ps-check"></i>
+                    </div>
+
+                </div>
+
+                <!-- Hidden input holding the selected status -->
+                <input type="hidden" name="WorkStatus" id="workStatusInput" value="" />
+                <span id="workStatusError" class="field-error" style="display:none;">Please select a status.</span>
+                <span asp-validation-for="WorkStatus" class="field-error"></span>
+            </div>
+
+            <!-- DESCRIPTION (optional) -->
+            <div class="ct-section">
+                <label class="ct-label" asp-for="Description">
+                    <i class="fas fa-comment-alt"></i> Description
+                    <span class="optional-tag">Optional</span>
+                </label>
+                <textarea asp-for="Description" class="form-control" rows="3"
+                          placeholder="e.g. I will continue tomorrow after the meeting..."></textarea>
+                <span asp-validation-for="Description" class="field-error"></span>
+            </div>
+
+            <!-- ACTIONS -->
+            <div class="ct-actions">
+                <a asp-action="Index" class="btn btn-outline">
+                    <i class="fas fa-arrow-left"></i> Back
+                </a>
+                <a asp-action="SubmitTask" asp-route-id="@Model.TaskId" class="btn btn-outline"
+                   style="border-color:#2563ab;color:#2563ab;">
+                    <i class="fas fa-paper-plane"></i> Submit Task
+                </a>
+                <button type="submit" class="btn btn-primary" id="updateBtn" onclick="return validateStatus()">
+                    <i class="fas fa-save"></i>
+                    @(hasStarted ? "Update Status" : "Start Task")
+                </button>
+            </div>
+        </form>
+
+        <!-- Progress Activity Log -->
+        @if (Model.RecentLogs.Any())
+        {
+            <div class="progress-log-section">
+                <h4><i class="fas fa-history"></i> Activity Log</h4>
+                <div class="log-timeline">
+                    @foreach (var log in Model.RecentLogs)
+                    {
+                        <div class="log-entry">
+                            <div class="log-dot" style="background:@log.WorkStatusColor;">
+                                <i class="@log.WorkStatusIcon" style="font-size:.65rem;color:#fff;"></i>
+                            </div>
+                            <div class="log-content">
+                                <div class="log-header">
+                                    <span class="log-status" style="color:@log.WorkStatusColor;">@log.WorkStatus</span>
+                                    <span class="log-time">@log.LoggedAt.AddHours(8).ToString("MMM dd, yyyy  h:mm tt")</span>
+                                </div>
+                                @if (!string.IsNullOrEmpty(log.Description))
+                                {
+                                    <p class="log-desc">@log.Description</p>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+
+    </div>
+</div>
+
+@section Styles {
+    <style>
+        .ct-section { padding:16px 24px; }
+        .ct-label { display:block;font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#475569;margin-bottom:6px; }
+        .ct-label i { margin-right:5px;color:#2563ab; }
+        .ct-actions { display:flex;justify-content:flex-end;gap:10px;padding:16px 24px;border-top:1px solid #e2e8f0;background:#f8fafc;flex-wrap:wrap; }
+        .required-star { color:#dc2626;font-weight:700;margin-left:2px; }
+        .optional-tag  { background:#f1f5f9;color:#64748b;font-size:.68rem;padding:2px 8px;border-radius:20px;margin-left:6px;text-transform:none;letter-spacing:0;font-weight:600; }
+        .field-hint { font-size:.78rem;color:#94a3b8; }
+
+        /* Task info strip */
+        .task-info-strip { display:flex;gap:16px;flex-wrap:wrap;padding:12px 24px;background:#f8fafc;border-bottom:1px solid #e2e8f0;font-size:.82rem;color:#475569; }
+        .task-info-strip i { margin-right:4px;color:#2563ab; }
+        .current-ws { display:inline-flex;align-items:center;gap:5px;padding:2px 10px;border-radius:20px;font-size:.8rem;font-weight:700; }
+        .ws-in-progress { background:#dcfce7;color:#15803d; }
+        .ws-on-hold     { background:#fef3c7;color:#b45309; }
+        .ws-on-break    { background:#dbeafe;color:#1e40af; }
+        .ws-nature-call { background:#d1fae5;color:#065f46; }
+
+        /* Status selection grid */
+        .progress-status-grid { display:grid;grid-template-columns:1fr 1fr;gap:12px; }
+        .ps-card {
+            display:flex;align-items:center;gap:12px;padding:14px 16px;
+            border:2px solid #e2e8f0;border-radius:12px;cursor:pointer;
+            background:#f8fafc;transition:border-color .2s,background .2s,box-shadow .2s;
+            user-select:none;
+        }
+        .ps-card:hover { border-color:#93c5fd;background:#f0f7ff; }
+        .ps-card.selected { border-color:#2563ab;background:#eff6ff;box-shadow:0 0 0 3px rgba(37,99,171,.12); }
+        .ps-icon { width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0; }
+        .ps-text { flex:1; }
+        .ps-text strong { display:block;font-size:.88rem;color:#0f172a; }
+        .ps-text small  { font-size:.74rem;color:#64748b; }
+        .ps-check { font-size:.95rem;color:#2563ab;opacity:0;transition:opacity .2s;flex-shrink:0; }
+        .ps-card.selected .ps-check { opacity:1; }
+
+        /* Activity log */
+        .progress-log-section { padding:20px 24px 24px;border-top:2px solid #e2e8f0;margin-top:4px; }
+        .progress-log-section h4 { font-size:.95rem;font-weight:700;color:#1e293b;margin:0 0 16px; }
+        .progress-log-section h4 i { margin-right:6px;color:#64748b; }
+        .log-timeline { display:flex;flex-direction:column;gap:0; }
+        .log-entry { display:flex;gap:14px;padding-bottom:16px;position:relative; }
+        .log-entry:not(:last-child)::before { content:'';position:absolute;left:16px;top:34px;bottom:0;width:2px;background:#e2e8f0; }
+        .log-dot { width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;z-index:1; }
+        .log-content { flex:1;padding-top:4px; }
+        .log-header { display:flex;align-items:center;gap:10px;flex-wrap:wrap; }
+        .log-status { font-size:.82rem;font-weight:700; }
+        .log-time   { font-size:.75rem;color:#94a3b8; }
+        .log-desc   { margin:4px 0 0;font-size:.82rem;color:#475569;background:#f8fafc;border-radius:6px;padding:6px 10px;border-left:3px solid #e2e8f0; }
+
+        @@media(max-width:560px) {
+            .progress-status-grid { grid-template-columns:1fr; }
+            .ct-actions { flex-direction:column; }
+        }
+    </style>
+}
+
+@section Scripts {
+    <script>
+        const statusMap = {
+            'In Progress': 'cardInProgress',
+            'On Hold':     'cardOnHold',
+            'On Break':    'cardOnBreak',
+            'Nature Call': 'cardNatureCall'
+        };
+
+        function selectStatus(status) {
+            // Deselect all
+            Object.values(statusMap).forEach(id => {
+                document.getElementById(id).classList.remove('selected');
+            });
+            // Select chosen
+            document.getElementById(statusMap[status]).classList.add('selected');
+            document.getElementById('workStatusInput').value = status;
+            document.getElementById('workStatusError').style.display = 'none';
+        }
+
+        function validateStatus() {
+            if (!document.getElementById('workStatusInput').value) {
+                document.getElementById('workStatusError').style.display = 'block';
+                document.querySelector('.progress-status-grid').scrollIntoView({ behavior: 'smooth', block: 'center' });
+                return false;
+            }
+            return true;
+        }
+
+        // Pre-select current status if task already started
+        var current = '@(Model.CurrentWorkStatus ?? "")';
+        if (current && statusMap[current]) {
+            selectStatus(current);
+        }
+    </script>
+}

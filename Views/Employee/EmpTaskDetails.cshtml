@@ -1,0 +1,419 @@
+﻿@using System.Linq
+@model TaskItem
+@{
+    ViewData["Title"] = "Task Details";
+    var submission = ViewBag.Submission as TaskSubmission;
+}
+
+<div class="form-page">
+    <div class="form-card">
+
+        <!-- HEADER -->
+        <div class="form-card-header">
+            <div class="detail-header-row">
+                <h3><i class="fas fa-clipboard-check"></i> Task Details</h3>
+                <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                    <span class="status-badge status-approved">Approved</span>
+                    @if (Model.TaskType == "Group")
+                    {
+                        <span class="status-badge" style="background:#f3e8ff;color:#7c3aed;">
+                            <i class="fas fa-users"></i> Group Task
+                        </span>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <!-- TASK INFO -->
+        <div class="task-detail-body">
+
+            <div class="td-field td-full">
+                <span class="td-label">Task Title</span>
+                <span class="td-value td-title">@Model.Title</span>
+            </div>
+
+            <div class="td-row">
+                <div class="td-field">
+                    <span class="td-label">Assigned To</span>
+                    <span class="td-value"><i class="fas fa-user-graduate"></i> @Model.AssignedToName</span>
+                </div>
+                <div class="td-field">
+                    <span class="td-label">Date Assigned</span>
+                    <span class="td-value">@Model.CreatedAt.ToString("MMMM dd, yyyy")</span>
+                </div>
+            </div>
+
+            @if (Model.Deadline.HasValue)
+            {
+                <div class="td-field">
+                    <span class="td-label">Deadline</span>
+                    <span class="td-value"><i class="fas fa-calendar-alt"></i> @Model.DeadlinePhDisplay</span>
+                </div>
+            }
+
+            <div class="td-field td-full">
+                <span class="td-label">Description</span>
+                <div class="td-desc">@Model.Description</div>
+            </div>
+
+            @{
+                var _mf = Model.GetAttachedFiles();
+            }
+            @if (_mf.Any())
+            {
+                <div class="td-field td-full">
+                    <span class="td-label">Attached Files</span>
+                    <div class="file-chips">
+                        @foreach (var af in _mf)
+                        {
+                            var afx = System.IO.Path.GetExtension(af.Name).ToLower();
+                            string afi;
+                            if (afx == ".png" || afx == ".jpg" || afx == ".jpeg") afi = "fas fa-image";
+                            else if (afx == ".pbix") afi = "fas fa-chart-bar";
+                            else if (afx == ".pdf") afi = "fas fa-file-pdf";
+                            else if (afx == ".xlsx" || afx == ".xls") afi = "fas fa-file-excel";
+                            else if (afx == ".docx" || afx == ".doc") afi = "fas fa-file-word";
+                            else if (afx == ".pptx" || afx == ".ppt") afi = "fas fa-file-powerpoint";
+                            else if (afx == ".zip") afi = "fas fa-file-archive";
+                            else afi = "fas fa-file";
+                            <a href="@af.Path" class="file-chip" target="_blank">
+                                <i class="@afi"></i> @af.Name
+                            </a>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+
+        <!-- APPROVED SUBMISSION -->
+        @if (submission != null)
+        {
+            <div class="td-submission-section">
+                <div class="td-submission-header">
+                    <i class="fas fa-paper-plane"></i> OJT Submission
+                    <span class="status-badge status-approved" style="margin-left:8px;">
+                        <i class="fas fa-check"></i> Approved
+                    </span>
+                    @if (submission.ReviewedAt.HasValue)
+                    {
+                        <span class="td-reviewed-on">
+                            Reviewed @submission.ReviewedAt.Value.ToString("MMM dd, yyyy h:mm tt")
+                        </span>
+                    }
+                </div>
+                <div class="task-detail-body td-submission-body">
+                    <div class="td-row">
+                        <div class="td-field">
+                            <span class="td-label">Submission Title</span>
+                            <span class="td-value">@submission.SubmissionTitle</span>
+                        </div>
+                        <div class="td-field">
+                            <span class="td-label">Submitted On</span>
+                            <span class="td-value">@submission.SubmittedAt.ToString("MMMM dd, yyyy h:mm tt")</span>
+                        </div>
+                    </div>
+                    @if (!string.IsNullOrEmpty(submission.SubmissionDescription))
+                    {
+                        <div class="td-field td-full">
+                            <span class="td-label">Description</span>
+                            <div class="td-desc">@submission.SubmissionDescription</div>
+                        </div>
+                    }
+                    @if (!string.IsNullOrEmpty(submission.FilePath))
+                    {
+                        <div class="td-field td-full">
+                            <span class="td-label">Submitted File</span>
+                            <a href="@submission.FilePath" class="file-link" target="_blank">
+                                <i class="fas fa-file"></i> @submission.FileName
+                            </a>
+                        </div>
+                    }
+                    @if (!string.IsNullOrEmpty(submission.LinkUrl))
+                    {
+                        <div class="td-field td-full">
+                            <span class="td-label">Submitted Link</span>
+                            <a href="@submission.LinkUrl" class="file-link" target="_blank">
+                                <i class="fas fa-external-link-alt"></i> @submission.LinkUrl
+                            </a>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="td-submission-section">
+                <div class="td-submission-header" style="color:#64748b;">
+                    <i class="fas fa-info-circle"></i> No submission record found for this task.
+                </div>
+            </div>
+        }
+
+        <!-- OJT PROGRESS LOG (visible to Employee) -->
+        @{
+            var progressLogs = ViewBag.ProgressLogs as List<ITPMS_OJT.Models.TaskProgressLog> ?? new();
+        }
+        @if (progressLogs.Any())
+        {
+            <div class="td-progress-section">
+                <div class="td-progress-header">
+                    <i class="fas fa-chart-line"></i> OJT Progress Activity
+                    <span class="td-reviewed-on">@progressLogs.Count update(s)</span>
+                </div>
+                <div class="td-progress-body">
+                    @foreach (var log in progressLogs)
+                    {
+                        <div class="td-log-entry">
+                            <div class="td-log-dot" style="background:@log.WorkStatusColor;">
+                                <i class="@log.WorkStatusIcon" style="font-size:.6rem;color:#fff;"></i>
+                            </div>
+                            <div class="td-log-content">
+                                <div class="td-log-header">
+                                    <span class="td-log-status" style="color:@log.WorkStatusColor;">
+                                        @log.WorkStatus
+                                    </span>
+                                    <span class="td-log-name">by @(log.OJTName ?? "OJT")</span>
+                                    <span class="td-log-time">@log.LoggedAt.AddHours(8).ToString("MMM dd, yyyy  h:mm tt")</span>
+                                </div>
+                                @if (!string.IsNullOrEmpty(log.Description))
+                                {
+                                    <p class="td-log-desc">@log.Description</p>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+        else if (ViewBag.Task != null && ((ITPMS_OJT.Models.TaskItem)ViewBag.Task).WorkStatus != null)
+        {
+            <div class="td-progress-section">
+                <div class="td-progress-header" style="color:#64748b;">
+                    <i class="fas fa-info-circle"></i> No progress log entries yet.
+                </div>
+            </div>
+        }
+
+        <!-- BACK BUTTON -->
+        <div class="td-actions">
+            <a asp-action="TasksGiven" class="btn btn-outline">
+                <i class="fas fa-arrow-left"></i> Back to Tasks Given
+            </a>
+            <a asp-action="CompletedTasks" class="btn btn-outline">
+                <i class="fas fa-check-circle"></i> Completed Tasks
+            </a>
+        </div>
+
+    </div>
+</div>
+
+@section Styles {
+    <style>
+        .task-detail-body {
+            padding: 24px 28px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .td-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .td-field {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .td-label {
+            font-size: .72rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .6px;
+            color: #94a3b8;
+        }
+
+        .td-value {
+            font-size: .95rem;
+            color: #0f172a;
+            font-weight: 500;
+        }
+
+            .td-value i {
+                color: #64748b;
+                margin-right: 4px;
+            }
+
+        .td-title {
+            font-size: 1.2rem;
+            font-weight: 700;
+        }
+
+        .td-desc {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 14px 16px;
+            font-size: .9rem;
+            color: #334155;
+            line-height: 1.6;
+        }
+
+        .td-full {
+            grid-column: 1 / -1;
+        }
+
+        .td-submission-section {
+            border-top: 2px dashed #e2e8f0;
+        }
+
+        .td-submission-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 14px 28px;
+            font-size: .9rem;
+            font-weight: 600;
+            color: #1a3a5c;
+            background: #f0fdf4;
+            border-bottom: 1px solid #bbf7d0;
+        }
+
+            .td-submission-header i {
+                color: #16a34a;
+            }
+
+        .td-reviewed-on {
+            margin-left: auto;
+            font-size: .75rem;
+            font-weight: 400;
+            color: #64748b;
+        }
+
+        .td-submission-body {
+            padding-top: 16px;
+        }
+
+        .td-actions {
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            gap: 10px;
+            padding: 16px 28px;
+            border-top: 1px solid #e2e8f0;
+            background: #f8fafc;
+        }
+
+        /* Progress Log */
+        .td-progress-section {
+            border-top: 2px dashed #e2e8f0;
+        }
+
+        .td-progress-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 14px 28px;
+            font-size: .9rem;
+            font-weight: 600;
+            color: #1e40af;
+            background: #eff6ff;
+            border-bottom: 1px solid #bfdbfe;
+        }
+
+            .td-progress-header i {
+                color: #2563ab;
+            }
+
+        .td-progress-body {
+            padding: 16px 28px;
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+        }
+
+        .td-log-entry {
+            display: flex;
+            gap: 12px;
+            padding-bottom: 14px;
+            position: relative;
+        }
+
+            .td-log-entry:not(:last-child)::before {
+                content: '';
+                position: absolute;
+                left: 15px;
+                top: 32px;
+                bottom: 0;
+                width: 2px;
+                background: #e2e8f0;
+            }
+
+        .td-log-dot {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            z-index: 1;
+        }
+
+        .td-log-content {
+            flex: 1;
+            padding-top: 3px;
+        }
+
+        .td-log-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .td-log-status {
+            font-size: .82rem;
+            font-weight: 700;
+        }
+
+        .td-log-name {
+            font-size: .76rem;
+            color: #64748b;
+        }
+
+        .td-log-time {
+            font-size: .74rem;
+            color: #94a3b8;
+            margin-left: auto;
+        }
+
+        .td-log-desc {
+            margin: 4px 0 0;
+            font-size: .81rem;
+            color: #475569;
+            background: #f8fafc;
+            border-radius: 6px;
+            padding: 6px 10px;
+            border-left: 3px solid #e2e8f0;
+        }
+
+        @@media (max-width:600px) {
+            .td-row {
+                grid-template-columns: 1fr;
+            }
+
+            .task-detail-body {
+                padding: 16px;
+            }
+
+            .td-actions {
+                padding: 14px 16px;
+                flex-wrap: wrap;
+            }
+        }
+    </style>
+}

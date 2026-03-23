@@ -1,0 +1,576 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - OJT Portal</title>
+    <link rel="icon" type="image/png" href="~/Assets/logo_final.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    @await RenderSectionAsync("Styles", required: false)
+
+    <style>
+        /* ── Profile avatar upload ── */
+        .avatar-wrap {
+            position: relative;
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            overflow: visible;
+            flex-shrink: 0;
+            cursor: pointer;
+        }
+
+            .avatar-wrap .user-avatar {
+                width: 48px;
+                height: 48px;
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 1.2rem;
+                font-weight: 700;
+                background: linear-gradient(135deg,#2563ab,#1e40af);
+                color: #fff;
+                margin: 0;
+            }
+
+        .avatar-img {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            object-fit: cover;
+            display: block;
+            border: 2px solid rgba(255,255,255,.25);
+        }
+
+        .avatar-overlay {
+            position: absolute;
+            inset: 0;
+            border-radius: 50%;
+            background: rgba(0,0,0,.55);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 3px;
+            opacity: 0;
+            transition: opacity .2s;
+            pointer-events: none;
+        }
+
+        .avatar-wrap:hover .avatar-overlay {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .avatar-overlay-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            color: #fff;
+            font-size: .55rem;
+            font-weight: 600;
+            gap: 1px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 2px 4px;
+            line-height: 1;
+            text-align: center;
+        }
+
+            .avatar-overlay-btn i {
+                font-size: .75rem;
+            }
+
+            .avatar-overlay-btn:hover {
+                color: #93c5fd;
+            }
+
+        .avatar-del-btn:hover {
+            color: #fca5a5 !important;
+        }
+    </style>
+</head>
+<body>
+    @{
+        bool isAuth = User.Identity?.IsAuthenticated == true;
+        string role = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "";
+        string fullName = User.FindFirst("FullName")?.Value ?? User.Identity?.Name ?? "";
+        string dept = User.FindFirst("Department")?.Value ?? "";
+        string branch = User.FindFirst("Branch")?.Value ?? "";
+        string ctrl = ViewContext.RouteData.Values["controller"]?.ToString() ?? "";
+        string action = ViewContext.RouteData.Values["action"]?.ToString() ?? "";
+        string? profilePic = ViewBag.ProfilePicUrl as string;
+
+        // OJT sidebar badge counts
+        int ojtNew = ViewBag.NewTaskCount != null ? (int)ViewBag.NewTaskCount : 0;
+        int ojtPending = ViewBag.PendingTaskCount != null ? (int)ViewBag.PendingTaskCount : 0;
+        int ojtCompleted = ViewBag.CompletedTaskCount != null ? (int)ViewBag.CompletedTaskCount : 0;
+
+        // Employee sidebar badge counts
+        int empPending = ViewBag.EmpPendingCount != null ? (int)ViewBag.EmpPendingCount : 0;
+        int empCompleted = ViewBag.EmpCompletedCount != null ? (int)ViewBag.EmpCompletedCount : 0;
+        int empTotal = ViewBag.EmpTotalCount != null ? (int)ViewBag.EmpTotalCount : 0;
+        int empReviewPending = ViewBag.EmpPendingReviewCount != null ? (int)ViewBag.EmpPendingReviewCount : 0;
+
+        // Chat unread badge
+        int unreadChat = ViewBag.UnreadChatCount != null ? (int)ViewBag.UnreadChatCount : 0;
+
+        // OJT notifications (unread only)
+        var notifications = ViewBag.Notifications as List<ITPMS_OJT.Controllers.OJTNotification>
+        ?? new List<ITPMS_OJT.Controllers.OJTNotification>();
+
+        // CSRF token for JS fetch calls
+        var antiforgery = Context.RequestServices.GetService<Microsoft.AspNetCore.Antiforgery.IAntiforgery>();
+        var tokens = antiforgery?.GetAndStoreTokens(Context);
+        string csrfToken = tokens?.RequestToken ?? "";
+    }
+
+    @if (isAuth)
+    {
+        <div class="app-wrapper">
+            <!-- ===== SIDEBAR ===== -->
+            <aside class="sidebar" id="sidebar">
+                <div class="sidebar-header">
+                    <div class="brand-logo">
+                        <img src="~/Assets/logo_final.png" alt="OJT Portal Logo" class="brand-img" />
+                        <span>OJT Portal</span>
+                    </div>
+                    <button class="sidebar-toggle" id="sidebarToggle" title="Collapse sidebar">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                </div>
+
+                <div class="sidebar-user">
+                    <div class="avatar-wrap" id="sidebarAvatarWrap">
+                        @if (!string.IsNullOrEmpty(profilePic))
+                        {
+                            <img src="@profilePic" class="avatar-img" alt="Profile" />
+                        }
+                        else
+                        {
+                            <div class="user-avatar">@(fullName.Length > 0 ? fullName[0].ToString().ToUpper() : "U")</div>
+                        }
+                        <!-- Hover overlay -->
+                        <div class="avatar-overlay">
+                            <label for="avatarFileInput" class="avatar-overlay-btn" title="Upload photo">
+                                <i class="fas fa-camera"></i>
+                                <span>Upload</span>
+                            </label>
+                            @if (!string.IsNullOrEmpty(profilePic))
+                            {
+                                <form asp-controller="Account" asp-action="DeleteProfilePicture" method="post" style="margin:0;">
+                                    @Html.AntiForgeryToken()
+                                    <button type="submit" class="avatar-overlay-btn avatar-del-btn" title="Remove photo">
+                                        <i class="fas fa-trash-alt"></i>
+                                        <span>Delete</span>
+                                    </button>
+                                </form>
+                            }
+                        </div>
+                        <!-- Hidden upload form -->
+                        <form asp-controller="Account" asp-action="UploadProfilePicture" method="post"
+                              enctype="multipart/form-data" id="avatarUploadForm" style="display:none;">
+                            @Html.AntiForgeryToken()
+                            <input type="file" id="avatarFileInput" name="photo"
+                                   accept="image/jpeg,image/png,image/gif,image/webp"
+                                   onchange="document.getElementById('avatarUploadForm').submit()" />
+                        </form>
+                    </div>
+                    <div class="user-info">
+                        <span class="user-name">@fullName</span>
+                        <span class="user-role badge-@role.ToLower()">@role</span>
+                    </div>
+                </div>
+
+                <nav class="sidebar-nav">
+                    @if (role == "OJT")
+                    {
+                        <a href="@Url.Action("Index", "OJT")"
+                           class="nav-item @(ctrl == "OJT" && action == "Index" ? "active" : "")" data-tooltip="Dashboard">
+                            <i class="fas fa-tachometer-alt"></i><span>Dashboard</span>
+                        </a>
+                        <a href="@Url.Action("NewTasks", "OJT")"
+                           class="nav-item @(action == "NewTasks" ? "active" : "")" data-tooltip="New Tasks">
+                            <i class="fas fa-star"></i><span>New Tasks</span>
+                            @if (ojtNew > 0)
+                            {
+                                <span class="nav-badge nav-badge-red">@ojtNew</span>
+                            }
+                        </a>
+                        <a href="@Url.Action("PendingTasks", "OJT")"
+                           class="nav-item @(action == "PendingTasks" ? "active" : "")" data-tooltip="Pending Tasks">
+                            <i class="fas fa-hourglass-half"></i><span>Pending Tasks</span>
+                            @if (ojtPending > 0)
+                            {
+                                <span class="nav-badge nav-badge-yellow">@ojtPending</span>
+                            }
+                        </a>
+                        <a href="@Url.Action("CompletedTasks", "OJT")"
+                           class="nav-item @(action == "CompletedTasks" ? "active" : "")" data-tooltip="Completed">
+                            <i class="fas fa-check-circle"></i><span>Completed</span>
+                            @if (ojtCompleted > 0)
+                            {
+                                <span class="nav-badge nav-badge-green">@ojtCompleted</span>
+                            }
+                        </a>
+                        <a href="@Url.Action("Index", "Chat")"
+                           class="nav-item @(ctrl == "Chat" ? "active" : "")" data-tooltip="My Chat">
+                            <i class="fas fa-comments"></i><span>My Chat</span>
+                            @if (unreadChat > 0)
+                            {
+                                <span class="nav-badge nav-badge-red" id="chatBadgeSidebar">@unreadChat</span>
+                            }
+                            else
+                            {
+
+                                <span class="nav-badge nav-badge-red" id="chatBadgeSidebar" style="display:none">0</span>
+                            }
+                        </a>
+                        <a href="@Url.Action("MyCalendar", "OJT")"
+                           class="nav-item @(action == "MyCalendar" ? "active" : "")" data-tooltip="My Calendar">
+                            <i class="fas fa-calendar-alt"></i><span>My Calendar</span>
+                        </a>
+                        <a href="@Url.Action("History", "OJT")"
+                           class="nav-item @(action == "History" ? "active" : "")" data-tooltip="History">
+                            <i class="fas fa-history"></i><span>History</span>
+                        </a>
+                    }
+                    else if (role == "Employee")
+                    {
+                        <a href="@Url.Action("Index", "Employee")"
+                           class="nav-item @(ctrl == "Employee" && action == "Index" ? "active" : "")" data-tooltip="Dashboard">
+                            <i class="fas fa-tachometer-alt"></i><span>Dashboard</span>
+                        </a>
+                        <a href="@Url.Action("CreateTask", "Employee")"
+                           class="nav-item @(action == "CreateTask" ? "active" : "")" data-tooltip="Create Task">
+                            <i class="fas fa-plus-circle"></i><span>Create Task</span>
+                        </a>
+                        <a href="@Url.Action("TasksGiven", "Employee")"
+                           class="nav-item @(action == "TasksGiven" ? "active" : "")" data-tooltip="Tasks Given">
+                            <i class="fas fa-clipboard-list"></i><span>Tasks Given</span>
+                            @if (empTotal > 0)
+                            {
+                                <span class="nav-badge nav-badge-blue">@empTotal</span>
+                            }
+                        </a>
+                        <a href="@Url.Action("CompletedTasks", "Employee")"
+                           class="nav-item @(action == "CompletedTasks" ? "active" : "")" data-tooltip="Completed Tasks">
+                            <i class="fas fa-check-circle"></i><span>Completed Tasks</span>
+                            @if (empCompleted > 0)
+                            {
+                                <span class="nav-badge nav-badge-green">@empCompleted</span>
+                            }
+                        </a>
+                        <a href="@Url.Action("PendingSubmissions", "Employee")"
+                           class="nav-item @(action == "PendingSubmissions" ? "active" : "")" data-tooltip="Pending Reviews">
+                            <i class="fas fa-clock"></i><span>Pending Reviews</span>
+                            @if (empReviewPending > 0)
+                            {
+                                <span class="nav-badge nav-badge-yellow">@empReviewPending</span>
+                            }
+                        </a>
+                        <a href="@Url.Action("Index", "Chat")"
+                           class="nav-item @(ctrl == "Chat" ? "active" : "")" data-tooltip="My Chat">
+                            <i class="fas fa-comments"></i><span>My Chat</span>
+                            @if (unreadChat > 0)
+                            {
+                                <span class="nav-badge nav-badge-red" id="chatBadgeSidebar">@unreadChat</span>
+                            }
+                            else
+                            {
+
+                                <span class="nav-badge nav-badge-red" id="chatBadgeSidebar" style="display:none">0</span>
+                            }
+                        </a>
+                        <a href="@Url.Action("MyCalendar", "Employee")"
+                           class="nav-item @(action == "MyCalendar" ? "active" : "")" data-tooltip="My Calendar">
+                            <i class="fas fa-calendar-alt"></i><span>My Calendar</span>
+                        </a>
+                        <a href="@Url.Action("History", "Employee")"
+                           class="nav-item @(action == "History" ? "active" : "")" data-tooltip="History">
+                            <i class="fas fa-history"></i><span>History</span>
+                        </a>
+                    }
+                    else if (role == "Admin")
+                    {
+                        <a href="@Url.Action("Index", "Admin")"
+                           class="nav-item @(ctrl == "Admin" && action == "Index" ? "active" : "")" data-tooltip="Dashboard">
+                            <i class="fas fa-tachometer-alt"></i><span>Dashboard</span>
+                        </a>
+                        <a href="@Url.Action("AllUsers", "Admin")"
+                           class="nav-item @(action == "AllUsers" ? "active" : "")" data-tooltip="All Users">
+                            <i class="fas fa-users"></i><span>All Users</span>
+                        </a>
+                        <a href="@Url.Action("RegisterUser", "Admin")"
+                           class="nav-item @(action == "RegisterUser" ? "active" : "")" data-tooltip="Register Users">
+                            <i class="fas fa-user-plus"></i><span>Register Users</span>
+                        </a>
+                    }
+                </nav>
+
+                <div class="sidebar-footer">
+                    <span class="dept-badge"><i class="fas fa-building"></i> @dept</span>
+                    @if (!string.IsNullOrEmpty(branch))
+                    {
+                        <span class="dept-badge"><i class="fas fa-map-marker-alt"></i> @branch</span>
+                    }
+                    <form asp-controller="Account" asp-action="Logout" method="post">
+                        @Html.AntiForgeryToken()
+                        <button type="submit" class="logout-btn">
+                            <i class="fas fa-sign-out-alt"></i><span>Logout</span>
+                        </button>
+                    </form>
+                </div>
+            </aside>
+
+            <!-- ===== MAIN CONTENT ===== -->
+            <div class="main-content" id="mainContent">
+                <header class="top-bar">
+                    <button class="mobile-toggle" id="mobileToggle">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <div class="page-title">@ViewData["Title"]</div>
+                    <div class="top-bar-right">
+                        <span class="welcome-text">Welcome, @fullName</span>
+
+                        @if (role == "OJT")
+                        {
+                            <!-- Notification Bell -->
+                            <div class="notif-wrap" id="notifWrap">
+                                <button class="notif-bell" id="notifBell" onclick="toggleNotif(event)" title="Notifications">
+                                    <i class="fas fa-bell"></i>
+                                    <span class="notif-dot" id="notifDot"
+                                          style="@(notifications.Count == 0 ? "display:none" : "")">
+                                        @notifications.Count
+                                    </span>
+                                </button>
+
+                                <div class="notif-panel" id="notifPanel">
+                                    <div class="notif-panel-header">
+                                        <span><i class="fas fa-bell"></i> Notifications</span>
+                                        <div style="display:flex;align-items:center;gap:8px;">
+                                            <span class="notif-count-label" id="notifCountLabel">
+                                                @notifications.Count new
+                                            </span>
+                                            @if (notifications.Count > 0)
+                                            {
+                                                <button class="notif-mark-all-btn" id="markAllBtn"
+                                                        onclick="markAllRead(event)" title="Mark all as read">
+                                                    <i class="fas fa-check-double"></i> Mark all read
+                                                </button>
+                                            }
+                                        </div>
+                                    </div>
+
+                                    <ul class="notif-list" id="notifList">
+                                        @if (!notifications.Any())
+                                        {
+                                            <li class="notif-empty" id="notifEmpty">
+                                                <i class="fas fa-check-circle"></i>
+                                                <p>All caught up!</p>
+                                            </li>
+                                        }
+                                        else
+                                        {
+                                            foreach (var n in notifications)
+                                            {
+                                                string notifClass = n.IsResubmit ? "notif-resubmit"
+                                                : n.IsDueSoon ? "notif-due-soon"
+                                                : "";
+                                                string notifIcon = n.IsResubmit ? "fas fa-redo-alt"
+                                                : n.IsDueSoon ? "fas fa-exclamation-triangle"
+                                                : "fas fa-clipboard-list";
+                                                string notifId = n.IsResubmit ? $"notif-sub-{n.SubmissionId}" : $"notif-{n.TaskId}";
+                                                <li class="notif-item @notifClass" id="@notifId" data-task-id="@n.TaskId" data-submission-id="@n.SubmissionId">
+                                                    <div class="notif-icon">
+                                                        <i class="@notifIcon"></i>
+                                                    </div>
+                                                    <div class="notif-body" onclick="readAndGo(@n.TaskId, '@Url.Action("TaskDetails", "OJT", new { id = n.TaskId })', @n.SubmissionId)" style="cursor:pointer;flex:1;">
+                                                        <span class="notif-from">@n.AssignedByName</span>
+                                                        @if (n.IsResubmit)
+                                                        {
+                                                            <span class="notif-msg notif-msg-resubmit">Resubmission Required: <strong>@n.TaskTitle</strong></span>
+                                                            <span class="notif-time">@n.CreatedAt.ToString("MMM dd, yyyy")</span>
+                                                        }
+                                                        else if (n.IsDueSoon)
+                                                        {
+                                                            <span class="notif-msg notif-msg-warn">Due Soon: <strong>@n.TaskTitle</strong></span>
+                                                            <span class="notif-time">Due: @(n.Deadline.HasValue? n.Deadline.Value.ToString("MMM dd, yyyy") : "")</span>
+                                                        }
+                                                        else
+                                                        {
+                                                            <span class="notif-msg">New Task: <strong>@n.TaskTitle</strong></span>
+                                                            <span class="notif-time">@n.CreatedAt.ToString("MMM dd, yyyy")</span>
+                                                        }
+                                                    </div>
+                                                    <button class="notif-dismiss-btn" title="Dismiss"
+                                                            onclick="dismissNotif(event, @n.TaskId, @n.SubmissionId)">
+                                                        <i class="fas fa-times"></i>
+                                                    </button>
+                                                </li>
+                                            }
+                                        }
+                                    </ul>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </header>
+
+                <div class="content-area">
+                    @if (TempData["SuccessMessage"] != null)
+                    {
+                        <div class="alert alert-success">
+                            <i class="fas fa-check-circle"></i> @Html.Raw(TempData["SuccessMessage"])
+                        </div>
+                    }
+                    @if (TempData["ErrorMessage"] != null)
+                    {
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-circle"></i> @Html.Raw(TempData["ErrorMessage"])
+                        </div>
+                    }
+                    @RenderBody()
+                </div>
+            </div>
+        </div>
+    }
+    else
+    {
+        @RenderBody()
+    }
+
+    <script src="~/js/site.js" asp-append-version="true"></script>
+    <script>
+        // CSRF token for fetch calls
+        const CSRF_TOKEN = '@csrfToken';
+
+        // ── Toggle notification panel ──
+        function toggleNotif(e) {
+            e.stopPropagation();
+            document.getElementById('notifPanel').classList.toggle('open');
+        }
+        document.addEventListener('click', function(e) {
+            const wrap = document.getElementById('notifWrap');
+            if (wrap && !wrap.contains(e.target))
+                document.getElementById('notifPanel')?.classList.remove('open');
+        });
+
+        // ── Update the dot count display ──
+        function updateDot(remaining) {
+            const dot   = document.getElementById('notifDot');
+            const label = document.getElementById('notifCountLabel');
+            const markAllBtn = document.getElementById('markAllBtn');
+            if (!dot) return;
+            if (remaining > 0) {
+                dot.textContent = remaining;
+                dot.style.display = '';
+            } else {
+                dot.style.display = 'none';
+            }
+            if (label) label.textContent = remaining > 0 ? remaining + ' new' : '0 new';
+            if (markAllBtn) markAllBtn.style.display = remaining > 0 ? '' : 'none';
+        }
+
+        // ── Show "all caught up" if list is empty ──
+        function checkEmpty() {
+            const list  = document.getElementById('notifList');
+            const items = list?.querySelectorAll('.notif-item');
+            if (items && items.length === 0) {
+                const empty = document.getElementById('notifEmpty');
+                if (!empty) {
+                    const li = document.createElement('li');
+                    li.id        = 'notifEmpty';
+                    li.className = 'notif-empty';
+                    li.innerHTML = '<i class="fas fa-check-circle"></i><p>All caught up!</p>';
+                    list.appendChild(li);
+                }
+            }
+        }
+
+        // ── Mark one notification read, then navigate ──
+        async function readAndGo(taskId, url, submissionId) {
+            await markRead(taskId, submissionId || 0);
+            window.location.href = url;
+        }
+
+        // ── Dismiss (×) button — mark read, remove from list, no navigation ──
+        async function dismissNotif(e, taskId, submissionId) {
+            e.stopPropagation();
+            const result = await markRead(taskId, submissionId || 0);
+            // For resubmit notifications use notif-sub-{submissionId}, for others use notif-{taskId}
+            const itemId = (submissionId && submissionId > 0) ? 'notif-sub-' + submissionId : 'notif-' + taskId;
+            const item = document.getElementById(itemId);
+            if (item) {
+                item.style.transition = 'opacity .25s, max-height .25s';
+                item.style.opacity = '0';
+                item.style.maxHeight = '0';
+                item.style.overflow  = 'hidden';
+                setTimeout(() => { item.remove(); checkEmpty(); }, 260);
+            }
+            if (result) updateDot(result.remaining);
+        }
+
+        // ── Mark all as read ──
+        async function markAllRead(e) {
+            e.stopPropagation();
+            try {
+                const res = await fetch('@Url.Action("MarkAllNotificationsRead", "OJT")', {
+                    method: 'POST',
+                    headers: { 'RequestVerificationToken': CSRF_TOKEN, 'Content-Type': 'application/json' }
+                });
+                const data = await res.json();
+                document.querySelectorAll('.notif-item').forEach(el => el.remove());
+                checkEmpty();
+                updateDot(0);
+            } catch(err) { console.error(err); }
+        }
+
+        // ── Core fetch helper ──
+        async function markRead(taskId, submissionId) {
+            try {
+                let body = 'taskId=' + encodeURIComponent(taskId);
+                if (submissionId && submissionId > 0)
+                    body += '&submissionId=' + encodeURIComponent(submissionId);
+                const res = await fetch('@Url.Action("MarkNotificationRead", "OJT")', {
+                    method: 'POST',
+                    headers: {
+                        'RequestVerificationToken': CSRF_TOKEN,
+                        'Content-Type': 'application/x-www-form-urlencoded'
+                    },
+                    body: body
+                });
+                return await res.json();
+            } catch(err) { console.error(err); return null; }
+        }
+    </script>
+    @await RenderSectionAsync("Scripts", required: false)
+    <script>
+        // ── Chat unread badge polling (every 30s) ──
+        (function(){
+            function pollChat(){
+                fetch('@Url.Action("GetUnreadCount", "Chat")', { credentials:'same-origin', cache:'no-store' })
+                    .then(r => r.json())
+                    .then(data => {
+                        var badge = document.getElementById('chatBadgeSidebar');
+                        if (!badge) return;
+                        if (data.count > 0) {
+                            badge.textContent = data.count;
+                            badge.style.display = '';
+                        } else {
+                            badge.style.display = 'none';
+                        }
+                    }).catch(() => {});
+            }
+            // Only poll if user is authenticated and not on Chat page (Chat page has its own polling)
+            var isChat = window.location.pathname.toLowerCase().includes('/chat');
+            if (!isChat) setInterval(pollChat, 30000);
+        })();
+    </script>
+</body>
+</html>
