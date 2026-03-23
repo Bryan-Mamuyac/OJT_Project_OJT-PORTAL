@@ -280,10 +280,8 @@ OJT trainees access the same real-time chat system as Employees. They can initia
 - Work status tracking: In Progress, On Hold, On Break, Nature Call
 - Deadline badges — overdue shown in red, near-deadline shown in amber
 - Profile picture upload and deletion — old photo deleted from disk and database simultaneously
-- **Notification Bell** with three types:
+- **Notification Bell**:
   - 🔵 **New Task** — appears when a new task is assigned (within last 7 days)
-  - 🟡 **Due Soon** — appears when deadline is within 3 days
-  - 🟣 **Resubmission Required** — appears when Employee requests resubmission
 - Notifications are self-cleaning — dismissed records older than 7 days are automatically purged from the database
 - FullCalendar v6 with same features as Employee, filtered to own tasks
 
