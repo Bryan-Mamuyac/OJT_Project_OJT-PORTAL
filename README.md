@@ -67,25 +67,53 @@ The system has three roles: **Admin**, **Employee**, and **OJT**.
 
 ![Login Dashboard](docs/screenshots/Login_Dashboard.png)
 
+The login page is the entry point of the system. Users authenticate using their registered email and password. Access is restricted based on role — inactive accounts are blocked from logging in regardless of credentials.
+
 ---
 
 ### Admin
 
 The Admin is the super user of the system, managing all users and monitoring the entire system across all branches and departments.
 
+---
+
+**Admin Dashboard**
+
 ![Admin Dashboard](docs/screenshots/Admin_Dashboard.png)
 
+The main Admin dashboard provides a system-wide overview, displaying the total count of OJT trainees and Employees per branch. Each branch card — Agoo, Reina Mercedes, Candon, and Pasig — shows active user counts at a glance.
+
+---
+
+**Admin Dashboard — Branch Summary**
+
 ![Admin Dashboard Overview](docs/screenshots/Admin_Dashboard_2.png)
+
+A closer view of the branch breakdown cards. Admins can quickly assess the distribution of active trainees and employees across all four branches without navigating away from the dashboard.
+
+---
 
 **User Management — All Users**
 
 ![Admin All Users](docs/screenshots/Admin_Dashboard_Allusers.png)
 
-**Register New User**
+The All Users page lists every registered user in the system. Admins can filter by role, branch, department, and status. Each user entry displays a status badge — Active, Approved, or Inactive — and provides quick access to edit or deactivate any account.
+
+---
+
+**Register New User — Step 1**
 
 ![Register User](docs/screenshots/Admin_Dashboard_RegisterUser.png)
 
+The user registration form allows the Admin to create new Employee or OJT accounts. Required fields include name, email, role, department, branch assignment, and initial password. Only the Admin has access to this form.
+
+---
+
+**Register New User — Step 2**
+
 ![Register User Step 2](docs/screenshots/Admin_Dashboard_RegisterUser_2.png)
+
+The second step of the registration process confirms the user details before submission. Once registered, the new user can immediately log in with the credentials set by the Admin.
 
 ---
 
@@ -93,39 +121,85 @@ The Admin is the super user of the system, managing all users and monitoring the
 
 Employees supervise OJT trainees. They create and assign tasks, review submissions, and monitor OJT progress within their department and branch.
 
+---
+
+**Employee Dashboard**
+
 ![Employee Dashboard](docs/screenshots/Employee_Dashboard.png)
 
+The Employee dashboard presents a summary of all task activity through stat cards — Total Tasks, Pending Tasks, Completed Tasks, Cancelled Tasks, and the count of Active OJT Trainees within the same department and branch. An analytics chart visualizes task assignment versus completion over a selected date range.
+
+---
+
+**Employee Dashboard — Recent Tasks**
+
 ![Employee Dashboard Overview](docs/screenshots/Employee_Dashboard_2.png)
+
+The lower section of the Employee dashboard displays a recent tasks table with status badges and a My OJT Trainees card listing all active trainees under the Employee's supervision, filterable by branch.
+
+---
 
 **Task Management — Create Task**
 
 ![Create Task](docs/screenshots/Employee_Dashboard_CreateTask.png)
 
+The task creation form allows Employees to assign either an Individual or Group task. Fields include task title, description, deadline, and file attachment. Supported file types are PDF, DOCX, XLSX, PPTX, PNG, JPG, PBIX, and ZIP.
+
+---
+
+**Task Management — Create Task (Group)**
+
 ![Create Task Step 2](docs/screenshots/Employee_Dashboard_CreateTask2.png)
+
+When creating a Group task, the Employee selects multiple OJT trainees as members. The task is then distributed to all selected members simultaneously, with each member able to submit their own response independently.
+
+---
 
 **Tasks Given**
 
 ![Tasks Given](docs/screenshots/Employee_Dashboard_TaskGiven.png)
 
+The Tasks Given page lists all tasks created by the Employee. Each entry shows the task title, assigned trainee or group, deadline, and current status. Employees can filter by status or search by trainee name from this view.
+
+---
+
 **Pending Submissions Review**
 
 ![Pending Review](docs/screenshots/Employee_Dashboard_PendingReview.png)
+
+The Pending Submissions page displays all OJT submissions awaiting review. Employees can view the submission details — title, description, attached files, and link URL — then either Approve the submission or Request Resubmission. Requesting resubmission deletes the old files immediately and notifies the OJT trainee.
+
+---
 
 **Completed Tasks**
 
 ![Completed Tasks](docs/screenshots/Employee_Dashboard_Completed.png)
 
+The Completed Tasks page shows all approved submissions. Upon approval, both the submission file and the original task file are permanently deleted from disk to keep the system clean and storage efficient.
+
+---
+
 **History**
 
 ![History](docs/screenshots/Employee_Dashboard_History.png)
+
+The History page serves as an archive of all approved and completed tasks. Employees can review past task records and remove individual entries from the history log if needed.
+
+---
 
 **Calendar**
 
 ![Employee Calendar](docs/screenshots/Employee_Dashboard_Calendar.png)
 
+The Employee calendar is powered by FullCalendar v6 and supports both Month and List views. Events are color-coded — blue for assigned tasks, green for completed tasks, and purple for upcoming due dates. Employees can filter by branch and OJT trainee, and export the calendar as a PDF.
+
+---
+
 **Chat**
 
 ![Employee Chat](docs/screenshots/Employee_Dashboard_Chats.png)
+
+The chat interface follows a messenger-style layout with a conversation list on the left and the active message thread on the right. Employees can start new conversations using the people picker, send file attachments up to 20MB, and receive messages in real time via SignalR WebSockets.
 
 ---
 
@@ -133,37 +207,77 @@ Employees supervise OJT trainees. They create and assign tasks, review submissio
 
 OJT trainees receive tasks from their assigned Employee supervisor. They submit work, track their progress, and communicate via chat.
 
+---
+
+**OJT Dashboard**
+
 ![OJT Dashboard](docs/screenshots/OJT_Dashboard.png)
 
+The OJT dashboard provides a personal task summary through stat cards — Total Tasks, Pending (submitted and awaiting review), Completed, and New Tasks. An analytics chart tracks assignment and completion trends over time.
+
+---
+
+**OJT Dashboard — Recent Tasks**
+
 ![OJT Dashboard Overview](docs/screenshots/OJT_Dashboard_2.png)
+
+The lower section of the OJT dashboard displays recent task entries with status badges and deadline indicators. Overdue tasks are highlighted in red and near-deadline tasks in amber to help trainees prioritize their workload.
+
+---
 
 **New Tasks**
 
 ![OJT New Task](docs/screenshots/OJT_Dashboard_NewTask.png)
 
+The New Tasks page lists all tasks recently assigned by the Employee supervisor that have not yet been started or submitted. Trainees can view task details including title, description, deadline, and any attached reference files.
+
+---
+
 **Pending Tasks**
 
 ![OJT Pending Tasks](docs/screenshots/OJT_Dashboard_PendingTask.png)
+
+The Pending Tasks page shows all tasks that have been submitted and are currently awaiting review by the Employee. Submitted files remain visible under the Attached Files section until the Employee takes action.
+
+---
 
 **Submit Task**
 
 ![OJT Submit Task](docs/screenshots/OJT_Dashboard_SubmitTask.png)
 
+The task submission form allows OJT trainees to upload their completed work. Trainees can provide a submission title, description, one or more file attachments, and an optional link URL. In the case of a resubmission, the old files are already cleared and fresh uploads are required.
+
+---
+
 **Completed Tasks**
 
 ![OJT Completed](docs/screenshots/OJT_Dashboard_Completed.png)
+
+The Completed Tasks page lists all tasks that have been reviewed and approved by the Employee supervisor. Trainees can refer to this page to track their overall progress throughout their OJT period.
+
+---
 
 **History**
 
 ![OJT History](docs/screenshots/OJT_Dashboard_History.png)
 
+The History page provides OJT trainees with a full archive of their approved tasks, serving as a personal record of completed work over the duration of their training.
+
+---
+
 **Calendar**
 
 ![OJT Calendar](docs/screenshots/OJT_Dashboard_Calendar.png)
 
+The OJT calendar mirrors the Employee calendar in functionality, filtered to show only the trainee's own tasks. Color-coded events mark assigned tasks in blue, completed tasks in green, and due dates in purple. Filters are available for branch and supervisor.
+
+---
+
 **Chat**
 
 ![OJT Chat](docs/screenshots/OJT_Dashboard_Chats.png)
+
+OJT trainees access the same real-time chat system as Employees. They can initiate conversations, exchange files, and receive instant message notifications. Unread message counts are reflected on the sidebar badge, updated live via SignalR.
 
 ---
 
@@ -284,22 +398,3 @@ The system is self-cleaning. Files are deleted from disk whenever they are no lo
    ```
 
 5. The Admin account is automatically seeded on first startup.
-
----
-
-## Adding Screenshots to This README
-
-Run the following in PowerShell to create the folder and copy your screenshots automatically:
-
-```powershell
-mkdir "C:\Users\OJT\source\repos\ITPMS_OJT\ITPMS_OJT\docs\screenshots"
-Copy-Item "C:\Users\OJT\Desktop\Documentation-OJT_PORTAL\*" -Destination "C:\Users\OJT\source\repos\ITPMS_OJT\ITPMS_OJT\docs\screenshots\"
-```
-
-Then push to GitHub:
-
-```bash
-git add .
-git commit -m "Add README and documentation screenshots"
-git push
-```
