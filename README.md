@@ -1,6 +1,6 @@
-# INTERNIFY — OJT Portal
+# INTERNIFY
 
-> *"Your Portal to the Real Life Work Experience"*
+> *"Your Portal to Real-Life Work Experience"*
 
 > A web-based On-the-Job Training management system built with **ASP.NET Core MVC 8**, designed to streamline trainee supervision, task management, real-time communication, and performance tracking across multiple branches and departments.
 
