@@ -43,15 +43,27 @@ namespace ITPMS_OJT.Models
                 try
                 {
                     var paths = System.Text.Json.JsonSerializer.Deserialize<List<string>>(AttachedFilePath) ?? new();
-                    var names = System.Text.Json.JsonSerializer.Deserialize<List<string>>(AttachedFileName ?? "[]") ?? new();
+                    List<string> names = new();
+                    if (!string.IsNullOrEmpty(AttachedFileName) && AttachedFileName.TrimStart().StartsWith("["))
+                        names = System.Text.Json.JsonSerializer.Deserialize<List<string>>(AttachedFileName) ?? new();
                     var result = new List<(string, string)>();
                     for (int i = 0; i < paths.Count; i++)
-                        result.Add((paths[i], i < names.Count ? names[i] : System.IO.Path.GetFileName(paths[i])));
+                    {
+                        // Use stored name if available, otherwise fall back to original filename from path
+                        string displayName = (i < names.Count && !string.IsNullOrEmpty(names[i]))
+                            ? names[i]
+                            : System.IO.Path.GetFileName(paths[i]);
+                        result.Add((paths[i], displayName));
+                    }
                     return result;
                 }
                 catch { return new(); }
             }
-            return new List<(string, string)> { (AttachedFilePath, AttachedFileName ?? System.IO.Path.GetFileName(AttachedFilePath)) };
+            // Single file — use AttachedFileName directly (original name, not GUID)
+            string singleName = !string.IsNullOrEmpty(AttachedFileName)
+                ? AttachedFileName
+                : System.IO.Path.GetFileName(AttachedFilePath);
+            return new List<(string, string)> { (AttachedFilePath, singleName) };
         }
 
         public DateTime CreatedAt { get; set; }

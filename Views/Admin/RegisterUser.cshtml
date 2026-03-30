@@ -13,13 +13,6 @@
             <p>Create an account for an OJT trainee or Employee. A default password will be assigned.</p>
         </div>
 
-        @if (TempData["SuccessMessage"] != null)
-        {
-            <div class="alert alert-success" style="margin:16px 24px 0;">
-                <i class="fas fa-check-circle"></i> @Html.Raw(TempData["SuccessMessage"]?.ToString())
-            </div>
-        }
-
         <form asp-action="RegisterUser" method="post">
             @Html.AntiForgeryToken()
             <div asp-validation-summary="ModelOnly" class="alert alert-danger" style="margin:16px 24px 0;"></div>
@@ -91,7 +84,7 @@
                         <label class="ct-label" asp-for="FirstName">
                             <i class="fas fa-user"></i> First Name <span class="required-star">*</span>
                         </label>
-                        <input asp-for="FirstName" class="form-control" placeholder="e.g. Bryan"
+                        <input asp-for="FirstName" class="form-control" placeholder="e.g. John"
                                oninput="generateUsername()" />
                         <span asp-validation-for="FirstName" class="field-error"></span>
                     </div>
@@ -99,7 +92,7 @@
                         <label class="ct-label" asp-for="LastName">
                             <i class="fas fa-user"></i> Last Name <span class="required-star">*</span>
                         </label>
-                        <input asp-for="LastName" class="form-control" placeholder="e.g. Mamuyac"
+                        <input asp-for="LastName" class="form-control" placeholder="e.g. Deep"
                                oninput="generateUsername()" />
                         <span asp-validation-for="LastName" class="field-error"></span>
                     </div>
@@ -115,7 +108,7 @@
                     <i class="fas fa-lock" style="color:#94a3b8;font-size:.85rem;"></i>
                     <span id="usernameText" style="color:#94a3b8;">Fill in first and last name above</span>
                 </div>
-                <p class="field-hint">Format: firstname_lastname (e.g. bryan_mamuyac)</p>
+                <p class="field-hint">Format: firstname_lastname (e.g. john_deep)</p>
             </div>
 
             <!-- EMAIL -->

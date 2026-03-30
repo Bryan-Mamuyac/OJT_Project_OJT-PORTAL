@@ -119,13 +119,33 @@
                             <div class="td-desc">@submission.SubmissionDescription</div>
                         </div>
                     }
-                    @if (!string.IsNullOrEmpty(submission.FilePath))
+                    @{
+                        var _esf = submission.GetSubmittedFiles();
+                    }
+                    @if (_esf.Any())
                     {
                         <div class="td-field td-full">
-                            <span class="td-label">Submitted File</span>
-                            <a href="@submission.FilePath" class="file-link" target="_blank">
-                                <i class="fas fa-file"></i> @submission.FileName
-                            </a>
+                            <span class="td-label"><i class="fas fa-upload" style="margin-right:5px;color:#7c3aed;"></i>Submitted Files</span>
+                            <div class="file-chips file-chips-col" style="margin-top:8px;">
+                                @foreach (var sf in _esf)
+                                {
+                                    var esfx = System.IO.Path.GetExtension(sf.Name).ToLower();
+                                    string esfi;
+                                    if (esfx == ".png" || esfx == ".jpg" || esfx == ".jpeg") esfi = "fas fa-image";
+                                    else if (esfx == ".pbix") esfi = "fas fa-chart-bar";
+                                    else if (esfx == ".pdf") esfi = "fas fa-file-pdf";
+                                    else if (esfx == ".xlsx" || esfx == ".xls") esfi = "fas fa-file-excel";
+                                    else if (esfx == ".docx" || esfx == ".doc") esfi = "fas fa-file-word";
+                                    else if (esfx == ".pptx" || esfx == ".ppt") esfi = "fas fa-file-powerpoint";
+                                    else if (esfx == ".zip") esfi = "fas fa-file-archive";
+                                    else esfi = "fas fa-file";
+                                    <a href="@sf.Path" class="file-chip file-chip-purple" target="_blank" title="@sf.Name">
+                                        <i class="@esfi"></i>
+                                        <span>@sf.Name</span>
+                                        <i class="fas fa-download file-chip-dl"></i>
+                                    </a>
+                                }
+                            </div>
                         </div>
                     }
                     @if (!string.IsNullOrEmpty(submission.LinkUrl))

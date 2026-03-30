@@ -176,9 +176,7 @@ namespace ITPMS_OJT.Controllers
                     model.Branch
                 });
 
-            TempData["SuccessMessage"] =
-                $"Account created for {model.FirstName} {model.LastName}. " +
-                $"Username: <strong>{username}</strong> · Default password: <strong>password123</strong>";
+            TempData["SuccessMessage"] = "Successfully created an account.";
 
             return RedirectToAction("RegisterUser");
         }

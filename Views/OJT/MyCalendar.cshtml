@@ -613,36 +613,72 @@
           function openModal(ev){
             var p    = ev.extendedProps;
             var type = p.type || 'assigned';
+            var isDeadline = (type === 'deadline');
+
+            // Header color and icon
             var hdr  = document.getElementById('calModalHdr');
             hdr.style.background = ev.backgroundColor || TYPE_COLORS[type] || '#2563ab';
             document.getElementById('calModalIcon').className  = TYPE_ICONS[type]  || 'fas fa-clipboard-list';
-            document.getElementById('calModalTitle').textContent = ev.title;
-            // Task type
+
+            // Title — strip "Due: " prefix for deadline events (it's already in the type label)
+            var rawTitle = ev.title || '';
+            var displayTitle = isDeadline && rawTitle.startsWith('Due: ') ? rawTitle.slice(5) : rawTitle;
+            document.getElementById('calModalTitle').textContent = displayTitle;
+
+            // Event type label — hide for deadline events (date row already says "Due Date")
+            var typeRow = document.getElementById('calModalType').parentElement;
+            if(isDeadline){
+              typeRow.style.display = 'none';
+            } else {
+              typeRow.style.display = '';
+              document.getElementById('calModalType').textContent = TYPE_LABELS[type] || type;
+            }
+
+            // Task type badge (Individual / Group)
             var isGroup = p.taskType === 'Group';
             document.getElementById('calModalTaskType').textContent = isGroup ? 'Group Task' : 'Individual Task';
             document.getElementById('calModalTypeRow').querySelector('i').className = isGroup ? 'fas fa-users' : 'fas fa-user';
-            // Group members
+
+            // Group members — extract correct taskId (works for both task-X and due-X ids)
             var membersRow = document.getElementById('calModalMembersRow');
             var membersList = document.getElementById('calModalMembersList');
             membersList.innerHTML = '';
             if(isGroup){
-              membersRow.style.display='block';
-              var taskId = ev.id.replace('task-','');
+              membersRow.style.display = 'block';
+              var rawId = ev.id || '';
+              var taskId = rawId.replace('task-','').replace('due-','');
               fetch('@Url.Action("GetGroupMembers", "OJT")'+'?taskId='+taskId+'&_='+Date.now(),{credentials:'same-origin',cache:'no-store'})
-                .then(r=>r.json()).then(function(names){
+                .then(function(r){ return r.json(); }).then(function(names){
                   names.forEach(function(n){ var s=document.createElement('span'); s.textContent='• '+n; membersList.appendChild(s); });
                 });
             } else { membersRow.style.display='none'; }
+
             // Branch
             var branchRow = document.getElementById('calModalBranchRow');
-            if(p.branch){ branchRow.style.display='flex'; document.getElementById('calModalBranch').textContent='Branch: '+p.branch; } else { branchRow.style.display='none'; }
-            document.getElementById('calModalBy').textContent   = 'By: ' + (p.assignedBy || '—');
+            if(p.branch){ branchRow.style.display='flex'; document.getElementById('calModalBranch').textContent='Branch: '+p.branch; }
+            else { branchRow.style.display='none'; }
+
+            // Assigned by
+            document.getElementById('calModalBy').textContent = 'By: ' + (p.assignedBy || '—');
+
+            // Date row — for deadline events show "Due Date:" label, for others show "Assigned:"
             var d = new Date(ev.startStr + 'T00:00:00');
             var fmt = d.toLocaleDateString('en-US',{year:'numeric',month:'short',day:'2-digit'});
-            document.getElementById('calModalDate').textContent = 'Date: ' + fmt;
+            if(isDeadline){
+              document.getElementById('calModalDate').textContent = 'Due Date: ' + fmt;
+            } else {
+              document.getElementById('calModalDate').textContent = 'Date: ' + fmt;
+            }
+
+            // Due date row — only show on assigned/completed events (NOT on deadline events to avoid duplication)
             var dueRow = document.getElementById('calModalDueRow');
-            if(p.dueDate){ dueRow.style.display='flex'; document.getElementById('calModalDue').textContent='Due: '+p.dueDate; } else { dueRow.style.display='none'; }
-            document.getElementById('calModalType').textContent = TYPE_LABELS[type] || type;
+            if(!isDeadline && p.dueDate){
+              dueRow.style.display='flex';
+              document.getElementById('calModalDue').textContent='Due: '+p.dueDate;
+            } else {
+              dueRow.style.display='none';
+            }
+
             document.getElementById('calModal').style.display = 'flex';
           }
           window.closeModal = function(){ document.getElementById('calModal').style.display='none'; };

@@ -3,7 +3,7 @@
 @{
     ViewData["Title"] = "Employee Dashboard";
     var branches = new[] { "Agoo", "Reina Mercedes", "Candon", "Pasig" };
-    string empBranch = (ViewBag.EmpBranch as string ?? "Agoo").Trim();
+    string empBranch = "__all__";  // Always default to All OJTs on load
 
     // Build branch->OJT map as JSON for client-side filtering
     var branchMap = new System.Collections.Generic.Dictionary<string, object>();
@@ -306,10 +306,16 @@
         <div class="section-body">
             <!-- Branch filter pills -->
             <div class="ojt-branch-pills">
+                <button type="button"
+                        class="ojt-branch-pill active"
+                        data-branch="__all__"
+                        onclick="filterOjtBranch('__all__')">
+                    <i class="fas fa-users"></i> All OJTs
+                </button>
                 @foreach (var b in branches)
                 {
                     <button type="button"
-                            class="ojt-branch-pill @(b == empBranch ? "active" : "")"
+                            class="ojt-branch-pill"
                             data-branch="@b"
                             onclick="filterOjtBranch('@b')">
                         <i class="fas fa-map-marker-alt"></i> @b
@@ -706,7 +712,7 @@
     <script>
             // OJT branch data — built server-side, injected as JSON
             var ojtBranchData = @Html.Raw(ojtBranchJson);
-            var currentOjtBranch = "@empBranch";
+            var currentOjtBranch = "__all__";
 
             function filterOjtBranch(branch) {
                 currentOjtBranch = branch;
@@ -720,7 +726,13 @@
             }
 
             function renderOjtList() {
-                var ojts      = ojtBranchData[currentOjtBranch] || [];
+                var ojts;
+                if (currentOjtBranch === '__all__') {
+                    ojts = [];
+                    Object.values(ojtBranchData).forEach(function(list) { ojts = ojts.concat(list); });
+                } else {
+                    ojts = ojtBranchData[currentOjtBranch] || [];
+                }
                 var list      = document.getElementById("ojtList");
                 var empty     = document.getElementById("ojtEmptyState");
                 var emptyMsg  = document.getElementById("ojtEmptyMsg");
@@ -731,7 +743,9 @@
                 if (ojts.length === 0) {
                     list.style.display  = "none";
                     empty.style.display = "block";
-                    emptyMsg.textContent = "No approved OJT trainees in " + currentOjtBranch + ".";
+                    emptyMsg.textContent = currentOjtBranch === '__all__'
+                            ? "No approved OJT trainees found."
+                            : "No approved OJT trainees in " + currentOjtBranch + ".";
                     badge.textContent   = "0 trainees";
                 } else {
                     list.style.display  = "";

@@ -20,11 +20,18 @@
 
 <div class="dashboard">
     <div class="section-card">
-        <div class="section-header">
+        <div class="section-header" style="flex-wrap:wrap;gap:10px;">
             <h3><i class="@iconClass"></i> @label</h3>
-            <a asp-action="Index" class="btn btn-outline-sm">
-                <i class="fas fa-arrow-left"></i> Back to Dashboard
-            </a>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                <div class="tf-search-wrap">
+                    <i class="fas fa-search"></i>
+                    <input type="text" id="taskTitleSearch" placeholder="Search by task title..."
+                           oninput="filterTaskCards(this.value)" autocomplete="off" />
+                </div>
+                <a asp-action="Index" class="btn btn-outline-sm">
+                    <i class="fas fa-arrow-left"></i> Back to Dashboard
+                </a>
+            </div>
         </div>
 
         @if (showFilters)
@@ -455,8 +462,48 @@
             .task-attached-label i {
                 color: #2563ab;
             }
+
+        .tf-search-wrap {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 0 12px;
+            height: 36px;
+            min-width: 220px;
+        }
+
+            .tf-search-wrap i {
+                color: #94a3b8;
+                font-size: .78rem;
+                flex-shrink: 0;
+            }
+
+            .tf-search-wrap input {
+                border: none;
+                background: transparent;
+                outline: none;
+                font-size: .83rem;
+                color: #374151;
+                width: 100%;
+            }
+
+        .tf-no-results {
+            text-align: center;
+            padding: 32px;
+            color: #94a3b8;
+            font-size: .85rem;
+            display: none;
+        }
     </style>
 }
+
+<div class="tf-no-results" id="tfNoResults">
+    <i class="fas fa-search" style="font-size:1.8rem;display:block;margin-bottom:8px;opacity:.4;"></i>
+    No tasks found matching your search.
+</div>
 
 @section Scripts {
     <script>
@@ -481,6 +528,21 @@
             if (fb) fb.value = "";
             if (fe) fe.value = "";
             applyFilters();
+        }
+
+        function filterTaskCards(query) {
+            var q = query.toLowerCase().trim();
+            var cards = document.querySelectorAll('.task-card');
+            var visible = 0;
+            cards.forEach(function(card) {
+                var titleEl = card.querySelector('.task-title-area h4');
+                var title = titleEl ? titleEl.textContent.toLowerCase() : '';
+                var match = !q || title.indexOf(q) !== -1;
+                card.style.display = match ? '' : 'none';
+                if (match) visible++;
+            });
+            var noRes = document.getElementById('tfNoResults');
+            if (noRes) noRes.style.display = (visible === 0 && q) ? 'block' : 'none';
         }
     </script>
 }

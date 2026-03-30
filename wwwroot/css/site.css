@@ -10165,3 +10165,10 @@ html, body {
     scrollbar-width: thin;
     scrollbar-color: rgba(255,255,255,.25) transparent;
 }
+
+/* ── Hide browser's native password reveal icon ── */
+input[type="password"]::-ms-reveal,
+input[type="password"]::-ms-clear,
+input[type="password"]::-webkit-credentials-auto-fill-button {
+    display: none !important;
+}

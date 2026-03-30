@@ -122,6 +122,7 @@
                         <span class="dl-sub">Date</span>
                         <input type="date" name="DeadlineDate" class="form-control"
                                id="deadlineDate"
+                               value="@Model.DeadlineDate"
                                min="@DateTime.Now.ToString("yyyy-MM-dd")"
                                onchange="updatePreview()" />
                     </div>
@@ -810,7 +811,23 @@
             if (this.value) { this.classList.remove('input-error'); document.getElementById('deadlineTimeError').style.display = 'none'; }
         });
 
-        populateTimes();
+        // Pre-fill deadline from model if editing existing task
+        (function initDeadline() {
+            var existingAmPm = '@(Model.DeadlineAmPm ?? "AM")';
+            var existingTime = '@(Model.DeadlineTime ?? "")';
+            // Set AM/PM first
+            document.getElementById('deadlineAmPm').value = existingAmPm;
+            document.getElementById('btnAM').classList.toggle('active', existingAmPm === 'AM');
+            document.getElementById('btnPM').classList.toggle('active', existingAmPm === 'PM');
+            // Populate time slots for the correct period
+            populateTimes();
+            // Then select the existing time value
+            if (existingTime) {
+                var sel = document.getElementById('deadlineTime');
+                sel.value = existingTime;
+                updatePreview();
+            }
+        })();
 
         // ── Existing file removal ──
         var existingRemoved = false;

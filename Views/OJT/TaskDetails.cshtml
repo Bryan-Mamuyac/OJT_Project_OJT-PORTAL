@@ -158,13 +158,33 @@
                         <span class="td-label">Your Description</span>
                         <div class="td-desc">@submission.SubmissionDescription</div>
                     </div>
-                    @if (!string.IsNullOrEmpty(submission.FilePath))
+                    @{
+                        var _sf = submission.GetSubmittedFiles();
+                    }
+                    @if (_sf.Any())
                     {
                         <div class="td-field td-full">
-                            <span class="td-label">Submitted File</span>
-                            <a href="@submission.FilePath" class="file-link" target="_blank">
-                                <i class="fas fa-file"></i> @submission.FileName
-                            </a>
+                            <span class="td-label"><i class="fas fa-upload" style="margin-right:5px;color:#7c3aed;"></i>Submitted Files</span>
+                            <div class="file-chips file-chips-col" style="margin-top:8px;">
+                                @foreach (var sf in _sf)
+                                {
+                                    var sfx = System.IO.Path.GetExtension(sf.Name).ToLower();
+                                    string sfi;
+                                    if (sfx == ".png" || sfx == ".jpg" || sfx == ".jpeg") sfi = "fas fa-image";
+                                    else if (sfx == ".pbix") sfi = "fas fa-chart-bar";
+                                    else if (sfx == ".pdf") sfi = "fas fa-file-pdf";
+                                    else if (sfx == ".xlsx" || sfx == ".xls") sfi = "fas fa-file-excel";
+                                    else if (sfx == ".docx" || sfx == ".doc") sfi = "fas fa-file-word";
+                                    else if (sfx == ".pptx" || sfx == ".ppt") sfi = "fas fa-file-powerpoint";
+                                    else if (sfx == ".zip") sfi = "fas fa-file-archive";
+                                    else sfi = "fas fa-file";
+                                    <a href="@sf.Path" class="file-chip file-chip-purple" target="_blank" title="@sf.Name">
+                                        <i class="@sfi"></i>
+                                        <span>@sf.Name</span>
+                                        <i class="fas fa-download file-chip-dl"></i>
+                                    </a>
+                                }
+                            </div>
                         </div>
                     }
                     @if (!string.IsNullOrEmpty(submission.LinkUrl))
@@ -253,16 +273,34 @@
             max-width: 320px;
         }
 
-            .file-chip i {
-                font-size: .85rem;
-                flex-shrink: 0;
+        .file-chip-purple {
+            background: #f5f3ff;
+            border-color: #c4b5fd;
+            color: #6d28d9;
+        }
+
+            .file-chip-purple:hover {
+                background: #ede9fe;
+                border-color: #a78bfa;
+                color: #5b21b6;
             }
 
-            .file-chip span {
-                overflow: hidden;
-                text-overflow: ellipsis;
-                white-space: nowrap;
-            }
+        .file-chip-dl {
+            font-size: .7rem;
+            margin-left: 4px;
+            opacity: .6;
+        }
+
+        .file-chip i {
+            font-size: .85rem;
+            flex-shrink: 0;
+        }
+
+        .file-chip span {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
 
         .task-detail-body {
             padding: 24px 28px;

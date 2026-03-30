@@ -297,17 +297,14 @@ namespace ITPMS_OJT.Controllers
                   ORDER BY t.UpdatedAt DESC",
                 new { UserId = userId })).ToList();
 
-            // Active OJTs: same department, same branch, Status Active or Approved
-            // Re-queried live so Admin activate/deactivate is immediately reflected
-            string empBranch = GetCurrentBranch();
+            // Active OJTs: same department, ALL branches
             var ojts = (await conn.QueryAsync<User>(
                 @"SELECT * FROM Users
                   WHERE Role = 'OJT'
                     AND Department = @Department
                     AND Status IN ('Active','Approved')
-                    AND (@Branch = '' OR Branch = @Branch)
-                  ORDER BY FirstName, LastName",
-                new { Department = dept, Branch = empBranch ?? "" })).ToList();
+                  ORDER BY Branch, FirstName, LastName",
+                new { Department = dept })).ToList();
 
             await SetSidebarCounts(conn, userId);
             ViewBag.EmpBranch = GetCurrentBranch();
@@ -319,7 +316,7 @@ namespace ITPMS_OJT.Controllers
                 MyOJTs = ojts,
                 CancelledTaskList = cancelledTasks,
                 TotalTasks = tasks.Count,
-                PendingTasks = tasks.Count(t => t.Status == "New" || t.Status == "Pending"),
+                PendingTasks = tasks.Count(t => t.Status == "Pending"),
                 CompletedTasks = tasks.Count(t => t.Status == "Approved"),
                 CancelledTasks = cancelledTasks.Count
             });
@@ -416,17 +413,14 @@ namespace ITPMS_OJT.Controllers
             string dept = GetCurrentDepartment();
             string branch = GetCurrentBranch();
             using var conn = GetConnection();
-            // Active OJTs: same department, same branch, Status Active or Approved
-            // Re-queried live so Admin activate/deactivate is immediately reflected
-            string empBranch = GetCurrentBranch();
+            // Active OJTs: same department, ALL branches — Employee can assign to any branch
             var ojts = (await conn.QueryAsync<User>(
                 @"SELECT * FROM Users
                   WHERE Role = 'OJT'
                     AND Department = @Department
                     AND Status IN ('Active','Approved')
-                    AND (@Branch = '' OR Branch = @Branch)
-                  ORDER BY FirstName, LastName",
-                new { Department = dept, Branch = empBranch ?? "" })).ToList();
+                  ORDER BY Branch, FirstName, LastName",
+                new { Department = dept })).ToList();
             ViewBag.OJTs = ojts;
             ViewBag.Branches = new[] { "Agoo", "Reina Mercedes", "Candon", "Pasig" };
             ViewBag.DefaultBranch = branch;
@@ -584,11 +578,11 @@ namespace ITPMS_OJT.Controllers
                 new { TaskId = id, UserId = userId });
             if (task == null) return NotFound();
             var ojts = (await conn.QueryAsync<User>(
-                "SELECT * FROM Users WHERE Role='OJT' AND Department=@Department AND Status='Active'",
+                "SELECT * FROM Users WHERE Role='OJT' AND Department=@Department AND Status IN ('Active','Approved') ORDER BY Branch, FirstName, LastName",
                 new { Department = dept })).ToList();
             ViewBag.OJTs = ojts;
             await SetSidebarCounts(conn, userId);
-            // Map task back to edit model
+            // Map task back to edit model — including deadline fields
             var model = new CreateTaskViewModel
             {
                 Title = task.Title,
@@ -596,6 +590,21 @@ namespace ITPMS_OJT.Controllers
                 AssignedToUserId = task.AssignedToUserId,
                 TaskType = task.TaskType ?? "Individual"
             };
+
+            // Re-populate deadline fields so the form pre-fills correctly
+            if (task.Deadline.HasValue)
+            {
+                // Deadline stored as UTC — convert to PH local time (UTC+8) for display
+                var phTime = task.Deadline.Value.AddHours(8);
+                model.DeadlineDate = phTime.ToString("yyyy-MM-dd");
+                int hour = phTime.Hour;
+                int minute = phTime.Minute;
+                model.DeadlineAmPm = hour >= 12 ? "PM" : "AM";
+                int displayHour = hour % 12;
+                if (displayHour == 0) displayHour = 12;
+                model.DeadlineTime = $"{displayHour:D2}:{minute:D2}";
+            }
+
             ViewBag.TaskId = id;
             ViewBag.ExistingFilePath = task.AttachedFilePath;
             ViewBag.ExistingFileName = task.AttachedFileName;
@@ -639,7 +648,7 @@ namespace ITPMS_OJT.Controllers
             bool clearFiles = Request.Form["ClearFiles"] == "true";
             if (clearFiles) { filePath = null; fileName = null; }
 
-            // If new files uploaded, replace existing
+            // If new files uploaded, delete old files first then save new ones
             var allowed = new[] { ".pdf", ".xlsx", ".xls", ".docx", ".doc", ".pptx", ".ppt", ".png", ".jpg", ".jpeg", ".pbix", ".zip" };
             if (model.AttachedFiles != null && model.AttachedFiles.Any(f => f?.Length > 0))
             {
@@ -656,6 +665,18 @@ namespace ITPMS_OJT.Controllers
                         await SetSidebarCounts(conn, userId); return View(model);
                     }
                 }
+
+                // Delete old task files from disk before saving new ones — prevents duplicates
+                if (!string.IsNullOrEmpty(task.AttachedFilePath))
+                {
+                    foreach (var (oldFp, _) in task.GetAttachedFiles())
+                    {
+                        if (string.IsNullOrEmpty(oldFp)) continue;
+                        var oldFullPath = Path.Combine(_env.WebRootPath, oldFp.TrimStart('/').Replace('/', Path.DirectorySeparatorChar));
+                        if (System.IO.File.Exists(oldFullPath)) System.IO.File.Delete(oldFullPath);
+                    }
+                }
+
                 var dir = Path.Combine(_env.WebRootPath, "uploads", "tasks");
                 Directory.CreateDirectory(dir);
                 var paths = new List<string>(); var names = new List<string>();
@@ -743,38 +764,14 @@ namespace ITPMS_OJT.Controllers
                 new { SubmissionId = submissionId, UserId = userId });
             if (sub == null) return NotFound();
 
-            // Also fetch the parent task to get its attached files
-            var task = await conn.QueryFirstOrDefaultAsync<TaskItem>(
-                "SELECT AttachedFilePath, AttachedFileName FROM Tasks WHERE TaskId=@TaskId",
-                new { sub.TaskId });
-
-            // 1. Delete submission files (uploaded by OJT when submitting)
-            foreach (var (fp, _) in sub.GetSubmittedFiles())
-            {
-                if (string.IsNullOrEmpty(fp)) continue;
-                var fullPath = Path.Combine(_env.WebRootPath, fp.TrimStart('/').Replace('/', Path.DirectorySeparatorChar));
-                if (System.IO.File.Exists(fullPath)) System.IO.File.Delete(fullPath);
-            }
-
-            // 2. Delete task files (uploaded by Employee when creating/editing the task)
-            if (task != null)
-            {
-                foreach (var (fp, _) in task.GetAttachedFiles())
-                {
-                    if (string.IsNullOrEmpty(fp)) continue;
-                    var fullPath = Path.Combine(_env.WebRootPath, fp.TrimStart('/').Replace('/', Path.DirectorySeparatorChar));
-                    if (System.IO.File.Exists(fullPath)) System.IO.File.Delete(fullPath);
-                }
-            }
-
-            // Approve and clear all file paths from DB
+            // Approve — files are kept on disk and in DB for reference
             await conn.ExecuteAsync(
-                "UPDATE TaskSubmissions SET Status='Approved', ReviewedAt=GETDATE(), FilePath=NULL, FileName=NULL WHERE SubmissionId=@Id",
+                "UPDATE TaskSubmissions SET Status='Approved', ReviewedAt=GETDATE() WHERE SubmissionId=@Id",
                 new { Id = submissionId });
             await conn.ExecuteAsync(
-                "UPDATE Tasks SET Status='Approved', UpdatedAt=GETDATE(), AttachedFilePath=NULL, AttachedFileName=NULL WHERE TaskId=@TaskId",
+                "UPDATE Tasks SET Status='Approved', UpdatedAt=GETDATE() WHERE TaskId=@TaskId",
                 new { sub.TaskId });
-            TempData["SuccessMessage"] = "Submission approved! All uploaded files have been removed.";
+            TempData["SuccessMessage"] = "Submission approved!";
             return RedirectToAction("PendingSubmissions");
         }
 
@@ -792,22 +789,84 @@ namespace ITPMS_OJT.Controllers
                 new { SubmissionId = submissionId, UserId = userId });
             if (sub == null) return NotFound();
 
-            // Delete old submission files from disk immediately — OJT will upload new ones
-            foreach (var (fp, _) in sub.GetSubmittedFiles())
-            {
-                if (string.IsNullOrEmpty(fp)) continue;
-                var fullPath = Path.Combine(_env.WebRootPath, fp.TrimStart('/').Replace('/', Path.DirectorySeparatorChar));
-                if (System.IO.File.Exists(fullPath)) System.IO.File.Delete(fullPath);
-            }
-
-            // Mark submission as Rejected and clear old file paths — ReviewedAt triggers OJT notification
+            // Mark submission as Rejected — ReviewedAt triggers OJT notification
+            // Files are kept so OJT can reference their previous submission
             await conn.ExecuteAsync(
-                "UPDATE TaskSubmissions SET Status='Rejected', ReviewedAt=GETDATE(), FilePath=NULL, FileName=NULL WHERE SubmissionId=@Id",
+                "UPDATE TaskSubmissions SET Status='Rejected', ReviewedAt=GETDATE() WHERE SubmissionId=@Id",
                 new { Id = submissionId });
             // Reset task to New so OJT can submit again
             await conn.ExecuteAsync("UPDATE Tasks SET Status='New', UpdatedAt=GETDATE() WHERE TaskId=@TaskId", new { sub.TaskId });
             TempData["SuccessMessage"] = "Resubmission requested. The OJT has been notified.";
             return RedirectToAction("PendingSubmissions");
+        }
+
+        // ===================== CLEANUP ORPHANED FILES (one-time fix) =====================
+        // Call this once to delete files from already-approved tasks/submissions
+        // that were approved before the auto-delete feature was added
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> CleanupOrphanedFiles()
+        {
+            int userId = GetCurrentUserId();
+            using var conn = GetConnection();
+
+            int filesDeleted = 0;
+
+            // 1. Clean up approved task files (tasks assigned by this employee)
+            var approvedTasks = (await conn.QueryAsync<TaskItem>(
+                @"SELECT TaskId, AttachedFilePath, AttachedFileName
+                  FROM Tasks
+                  WHERE AssignedByUserId = @UserId
+                    AND Status = 'Approved'
+                    AND AttachedFilePath IS NOT NULL",
+                new { UserId = userId })).ToList();
+
+            foreach (var task in approvedTasks)
+            {
+                foreach (var (fp, _) in task.GetAttachedFiles())
+                {
+                    if (string.IsNullOrEmpty(fp)) continue;
+                    var fullPath = Path.Combine(_env.WebRootPath, fp.TrimStart('/').Replace('/', Path.DirectorySeparatorChar));
+                    if (System.IO.File.Exists(fullPath))
+                    {
+                        System.IO.File.Delete(fullPath);
+                        filesDeleted++;
+                    }
+                }
+                await conn.ExecuteAsync(
+                    "UPDATE Tasks SET AttachedFilePath=NULL, AttachedFileName=NULL WHERE TaskId=@TaskId",
+                    new { task.TaskId });
+            }
+
+            // 2. Clean up approved submission files (submissions for tasks assigned by this employee)
+            var approvedSubs = (await conn.QueryAsync<TaskSubmission>(
+                @"SELECT ts.SubmissionId, ts.FilePath, ts.FileName
+                  FROM TaskSubmissions ts
+                  JOIN Tasks t ON ts.TaskId = t.TaskId
+                  WHERE t.AssignedByUserId = @UserId
+                    AND ts.Status = 'Approved'
+                    AND ts.FilePath IS NOT NULL",
+                new { UserId = userId })).ToList();
+
+            foreach (var sub in approvedSubs)
+            {
+                foreach (var (fp, _) in sub.GetSubmittedFiles())
+                {
+                    if (string.IsNullOrEmpty(fp)) continue;
+                    var fullPath = Path.Combine(_env.WebRootPath, fp.TrimStart('/').Replace('/', Path.DirectorySeparatorChar));
+                    if (System.IO.File.Exists(fullPath))
+                    {
+                        System.IO.File.Delete(fullPath);
+                        filesDeleted++;
+                    }
+                }
+                await conn.ExecuteAsync(
+                    "UPDATE TaskSubmissions SET FilePath=NULL, FileName=NULL WHERE SubmissionId=@Id",
+                    new { Id = sub.SubmissionId });
+            }
+
+            TempData["SuccessMessage"] = $"Cleanup complete. {filesDeleted} orphaned file(s) deleted from disk. {approvedTasks.Count} task(s) and {approvedSubs.Count} submission(s) cleared.";
+            return RedirectToAction("History");
         }
 
         // ===================== DELETE HISTORY =====================
