@@ -146,7 +146,9 @@ Lists every registered user with filters by role, branch, department, and status
 
 ![Register User Step 2](docs/screenshots/Admin_Dashboard_RegisterUser_2.png)
 
-Admins create new Employee or OJT accounts with role, department, branch, and an initial password.
+![Set Password New User](docs/screenshots/Set_Password_NewUser.png)
+
+Admins create new Employee or OJT accounts with role, department, branch, and an initial password. New users are prompted to set their own password on first login.
 
 ---
 
